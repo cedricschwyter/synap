@@ -1,19 +1,14 @@
 use std::ops::{Add, AddAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
 
-// waiting for the compiler to implement this feature, until then manually enforcing these trait bounds,
-// but already preparing the type for easy switch -- see https://github.com/rust-lang/rust/issues/21903
-//type MatrixElement<T: Add<T, Output = T> + Mul<T, Output = T> + Copy> = T;
-pub type MatrixElement<T> = T;
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct Matrix<T> {
-    elements: Vec<Vec<MatrixElement<T>>>,
+    elements: Vec<Vec<T>>,
     width: usize,
     height: usize,
 }
 
-impl<T> Matrix<MatrixElement<T>> {
-    pub fn new<E>(elements: Vec<Vec<MatrixElement<E>>>) -> Matrix<MatrixElement<E>> {
+impl<T> Matrix<T> {
+    pub fn new(elements: Vec<Vec<T>>) -> Matrix<T> {
         if elements.is_empty() {
             panic!("attempting to create matrix with no elements");
         }
@@ -45,35 +40,46 @@ impl<T> Matrix<MatrixElement<T>> {
     }
 }
 
-impl<T> Index<usize> for Matrix<MatrixElement<T>> {
-    type Output = Vec<MatrixElement<T>>;
+impl<T> Index<usize> for Matrix<T> {
+    type Output = Vec<T>;
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.elements[index]
     }
 }
 
-impl<T: Add<Output = T> + Copy> Add for Matrix<MatrixElement<T>> {
-    type Output = Self;
+impl<T: Add<T, Output = E> + Copy, E> Add for Matrix<T> {
+    type Output = Matrix<E>;
 
     fn add(self, rhs: Self) -> Self::Output {
         self.assert_same_size(&rhs);
-        let mut entries = Vec::<Vec<MatrixElement<T>>>::new();
+        let mut elements = Vec::<Vec<E>>::new();
         for row in 0..self.height {
-            entries.push(Vec::<MatrixElement<T>>::new());
+            elements.push(Vec::<E>::new());
             for col in 0..self.width {
-                entries[row].push(self[row][col] + rhs[row][col]);
+                elements[row].push(self[row][col] + rhs[row][col]);
             }
         }
-        Matrix {
-            elements: entries,
-            width: self.width,
-            height: self.height,
-        }
+        Matrix::<E>::new(elements)
     }
 }
 
-impl<T> Mul for Matrix<MatrixElement<T>> {
+impl<T: Neg<Output = E> + Copy, E> Neg for Matrix<T> {
+    type Output = Matrix<E>;
+
+    fn neg(self) -> Self::Output {
+        let mut elements = Vec::<Vec<E>>::new();
+        for row in 0..self.height {
+            elements.push(Vec::<E>::new());
+            for col in 0..self.width {
+                elements[row].push(-self[row][col]);
+            }
+        }
+        Matrix::<E>::new(elements)
+    }
+}
+
+impl<T> Mul for Matrix<T> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -96,10 +102,29 @@ mod tests {
     }
 
     #[test]
+    fn matrix_negation() {
+        let matrix = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        assert_eq!(
+            -matrix,
+            Matrix::<i32>::new(vec![vec![0, -1, -2], vec![-3, -4, -5], vec![-6, -7, -8]])
+        );
+    }
+
+    #[test]
     fn matrix_addition() {
         let left = Matrix::<u32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
         let right = Matrix::<u32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
         assert_eq!(left + right, Matrix::<u32>::new(vec![vec![8, 8, 8]; 3]));
+    }
+
+    #[test]
+    fn matrix_addition_with_negation() {
+        let left = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let right = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        assert_eq!(
+            left + -right,
+            Matrix::<i32>::new(vec![vec![-8, -6, -4], vec![-2, 0, 2], vec![4, 6, 8]])
+        );
     }
 
     #[test]
