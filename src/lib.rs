@@ -34,6 +34,7 @@ impl<T> Matrix<MatrixElement<T>> {
             height,
         }
     }
+
     fn assert_same_size(&self, rhs: &Self) {
         if self.width != rhs.width || self.height != rhs.height {
             panic!(
@@ -89,9 +90,23 @@ mod tests {
     use crate::*;
 
     #[test]
+    #[should_panic]
+    fn matrix_creation_inconsistent_rows() {
+        let _ = Matrix::<u32>::new(vec![vec![0, 1], vec![2, 3, 4, 5, 6]]);
+    }
+
+    #[test]
     fn matrix_addition() {
         let left = Matrix::<u32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
         let right = Matrix::<u32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
         assert_eq!(left + right, Matrix::<u32>::new(vec![vec![8, 8, 8]; 3]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn matrix_addition_incorrect_size() {
+        let left = Matrix::<u32>::new(vec![vec![0, 1, 2]]);
+        let right = Matrix::<u32>::new(vec![vec![3, 4, 5], vec![6, 7, 8]]);
+        let _ = left + right;
     }
 }
