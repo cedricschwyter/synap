@@ -2,7 +2,7 @@ use num::Num;
 use std::fmt::Debug;
 use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub};
 
-pub trait MatrixElement<T>: PartialEq + Debug + Copy {}
+pub trait MatrixElement<T>: PartialEq + Debug + Copy + Mul<T, Output = T> {}
 
 impl<T: Num + Debug + Copy> MatrixElement<T> for T {}
 
@@ -65,6 +65,18 @@ impl<T: MatrixElement<T>> Matrix<T> {
         Matrix::<T>::new(elements)
     }
 
+    pub fn scale(&self, lhs: Matrix<T>) -> Matrix<T> {
+        lhs.assert_scalar();
+        let mut elements = Vec::<Vec<T>>::new();
+        for row in 0..self.height {
+            elements.push(Vec::<T>::new());
+            for col in 0..self.width {
+                elements[row].push(lhs.to_scalar() * self[row][col]);
+            }
+        }
+        Matrix::<T>::new(elements)
+    }
+
     fn assert_same_size(&self, rhs: &Self) {
         if self.width != rhs.width || self.height != rhs.height {
             panic!(
@@ -79,6 +91,19 @@ impl<T: MatrixElement<T>> Matrix<T> {
             panic!(
                 "matrices must be of sizes n x m and m x p to multiply, got {} x {} and {} x {}",
                 self.height, self.width, rhs.height, rhs.width
+            );
+        }
+    }
+
+    fn is_scalar(&self) -> bool {
+        self.width == 1 && self.height == 1
+    }
+
+    fn assert_scalar(&self) {
+        if !self.is_scalar() {
+            panic!(
+                "expected scalar value, got {} x {}",
+                self.height, self.width
             );
         }
     }
@@ -309,5 +334,15 @@ mod tests {
         let left = Matrix::<u32>::new(vec![vec![0, 1, 2]]);
         let right = Matrix::<u32>::new(vec![vec![3, 4, 5], vec![6, 7, 8]]);
         let _ = left + right;
+    }
+
+    #[test]
+    fn scalar_matrix_multiplication() {
+        let left = Matrix::<i32>::scalar(5);
+        let right = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        assert_eq!(
+            right.scale(left),
+            Matrix::<i32>::new(vec![vec![0, 5, 10], vec![15, 20, 25], vec![30, 35, 40]])
+        );
     }
 }
