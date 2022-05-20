@@ -1,6 +1,6 @@
 use num::Num;
 use std::fmt::Debug;
-use std::ops::{Add, AddAssign, Index, IndexMut, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub};
 
 pub trait MatrixElement<T>: PartialEq + Debug + Copy {}
 
@@ -38,6 +38,10 @@ impl<T: MatrixElement<T>> Matrix<T> {
 
     pub fn vector(elements: Vec<T>) -> Matrix<T> {
         Matrix::<T>::new(vec![elements]).transpose()
+    }
+
+    pub fn scalar(element: T) -> Matrix<T> {
+        Matrix::<T>::vector(vec![element])
     }
 
     pub fn to_scalar(&self) -> T {
@@ -110,6 +114,22 @@ impl<T: MatrixElement<T> + Add<T, Output = T>> Add for Matrix<T> {
     }
 }
 
+impl<T: MatrixElement<T> + Sub<T, Output = T>> Sub for Matrix<T> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.assert_same_size(&rhs);
+        let mut elements = Vec::<Vec<T>>::new();
+        for row in 0..self.height {
+            elements.push(Vec::<T>::new());
+            for col in 0..self.width {
+                elements[row].push(self[row][col] - rhs[row][col]);
+            }
+        }
+        Matrix::<T>::new(elements)
+    }
+}
+
 impl<T: MatrixElement<T> + Neg<Output = T>> Neg for Matrix<T> {
     type Output = Self;
 
@@ -136,7 +156,7 @@ impl<T: MatrixElement<T> + Mul<T, Output = T> + AddAssign<T>> Mul for Matrix<T> 
             for i in 1..self.width {
                 value += self[0][i] * rhs[i][0];
             }
-            return Matrix::<T>::vector(vec![value]);
+            return Matrix::<T>::scalar(value);
         }
         for row in 0..self.height {
             elements.push(Vec::<T>::new());
