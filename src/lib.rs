@@ -157,7 +157,11 @@ impl<T: Add<T, Output = T> + AddAssign<T> + Mul<T, Output = T> + Clone + Copy> M
         for row in 0..self.height {
             elements.push(Vec::<T>::new());
             for col in 0..rhs.width {
-                elements[row].push(Vector::<T>::new(&self[row]) * Vector::<T>::new(&rhs[col]));
+                let mut r = Vec::<T>::new();
+                for i in 0..rhs.height {
+                    r.push(rhs[i][col]);
+                }
+                elements[row].push(Vector::<T>::new(&self[row]) * Vector::<T>::new(&r));
             }
         }
         Matrix::<T>::new(&elements)
