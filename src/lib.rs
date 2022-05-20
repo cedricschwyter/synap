@@ -170,7 +170,7 @@ impl<T: MatrixElement<T> + Neg<Output = T>> Neg for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T> + Mul<T, Output = T> + AddAssign<T>> Mul for Matrix<T> {
+impl<T: MatrixElement<T> + AddAssign<T>> Mul for Matrix<T> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -353,6 +353,23 @@ mod tests {
         assert_eq!(
             right.scale(left),
             Matrix::<i32>::vector(vec![0, 5, 10, 15, 20])
+        );
+    }
+
+    #[test]
+    fn multi_step_computation() {
+        let left = Matrix::<i32>::scalar(10);
+        let middle_left = Matrix::<i32>::new(vec![
+            vec![1, 0, 0, 0],
+            vec![0, 1, 0, 0],
+            vec![0, 0, 1, 0],
+            vec![0, 0, 0, 1],
+        ]);
+        let middle_right = Matrix::<i32>::vector(vec![1, 2, 3, 4]);
+        let right = Matrix::<i32>::vector(vec![5, 6, 7, 8]);
+        assert_eq!(
+            middle_left.scale(left) * -middle_right + right,
+            Matrix::<i32>::vector(vec![-5, -14, -23, -32])
         );
     }
 }
