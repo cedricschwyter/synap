@@ -345,4 +345,14 @@ mod tests {
             Matrix::<i32>::new(vec![vec![0, 5, 10], vec![15, 20, 25], vec![30, 35, 40]])
         );
     }
+
+    #[test]
+    fn scalar_vector_multiplication() {
+        let left = Matrix::<i32>::scalar(5);
+        let right = Matrix::<i32>::vector(vec![0, 1, 2, 3, 4]);
+        assert_eq!(
+            right.scale(left),
+            Matrix::<i32>::vector(vec![0, 5, 10, 15, 20])
+        );
+    }
 }
