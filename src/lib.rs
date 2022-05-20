@@ -1,8 +1,11 @@
 use num::Num;
 use std::fmt::Debug;
-use std::ops::{Add, AddAssign, Index, IndexMut, Mul, Neg, Sub};
+use std::ops::{Add, Index, IndexMut, Mul, Neg, Sub};
 
-pub trait MatrixElement<T>: PartialEq + Debug + Copy + Mul<T, Output = T> {}
+pub trait MatrixElement<T>:
+    PartialEq + Debug + Copy + Add<T, Output = T> + Mul<T, Output = T> + Sub<T, Output = T>
+{
+}
 
 impl<T: Num + Debug + Copy> MatrixElement<T> for T {}
 
@@ -123,7 +126,7 @@ impl<T: MatrixElement<T>> IndexMut<usize> for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T> + Add<T, Output = T>> Add for Matrix<T> {
+impl<T: MatrixElement<T>> Add for Matrix<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -139,7 +142,7 @@ impl<T: MatrixElement<T> + Add<T, Output = T>> Add for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T> + Sub<T, Output = T>> Sub for Matrix<T> {
+impl<T: MatrixElement<T>> Sub for Matrix<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -170,7 +173,7 @@ impl<T: MatrixElement<T> + Neg<Output = T>> Neg for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T> + AddAssign<T>> Mul for Matrix<T> {
+impl<T: MatrixElement<T>> Mul for Matrix<T> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -179,7 +182,7 @@ impl<T: MatrixElement<T> + AddAssign<T>> Mul for Matrix<T> {
         if self.height == 1 && rhs.width == 1 {
             let mut value: T = self[0][0] * rhs[0][0];
             for i in 1..self.width {
-                value += self[0][i] * rhs[i][0];
+                value = value + self[0][i] * rhs[i][0];
             }
             return Matrix::<T>::scalar(value);
         }
