@@ -205,7 +205,7 @@ impl<T: MatrixElement<T>> Mul for Matrix<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::linear_algebra::matrix::*;
+    use crate::algebra::matrix::*;
 
     #[test]
     fn matrix_vector_multiplication() {
