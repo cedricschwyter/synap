@@ -1,9 +1,10 @@
-use num::Num;
+use super::algorithms::*;
+use num::{Num, One, Zero};
 use std::fmt::Debug;
 use std::ops::{Add, Index, IndexMut, Mul, Neg, Sub};
 
 pub trait MatrixElement<T>:
-    PartialEq + Debug + Copy + Add<T, Output = T> + Mul<T, Output = T> + Sub<T, Output = T>
+    PartialEq + Debug + Copy + Add<T, Output = T> + Mul<T, Output = T> + Sub<T, Output = T> + Zero + One
 {
 }
 
@@ -14,6 +15,15 @@ pub struct Matrix<T: MatrixElement<T>> {
     elements: Vec<Vec<T>>,
     width: usize,
     height: usize,
+    rank: Option<u32>,
+    det: Option<T>,
+    row_echelon_form: Option<Vec<Vec<T>>>,
+    lu_decomposition: Option<Vec<Vec<T>>>,
+    qr_decomposition: Option<Vec<Vec<T>>>,
+    is_orthogonal: Option<bool>,
+    is_normal: Option<bool>,
+    is_orthonormal: Option<bool>,
+    is_unitary: Option<bool>,
 }
 
 impl<T: MatrixElement<T>> Matrix<T> {
@@ -36,7 +46,40 @@ impl<T: MatrixElement<T>> Matrix<T> {
             elements,
             width,
             height,
+            rank: None,
+            det: None,
+            row_echelon_form: None,
+            lu_decomposition: None,
+            qr_decomposition: None,
+            is_normal: None,
+            is_orthogonal: None,
+            is_orthonormal: None,
+            is_unitary: None,
         }
+    }
+
+    pub fn identity(dimension: usize) -> Matrix<T> {
+        let mut elements = vec![vec![num::zero(); dimension]; dimension];
+        for row in 0..dimension {
+            for col in 0..dimension {
+                if row == col {
+                    elements[row][col] = num::one();
+                }
+            }
+        }
+        Matrix::<T>::new(elements)
+    }
+
+    pub fn identity_rect((height, width): (usize, usize)) -> Matrix<T> {
+        let mut elements = vec![vec![num::zero(); width]; height];
+        for row in 0..height {
+            for col in 0..width {
+                if row == col {
+                    elements[row][col] = num::one();
+                }
+            }
+        }
+        Matrix::<T>::new(elements)
     }
 
     pub fn vector(elements: Vec<T>) -> Matrix<T> {
@@ -80,8 +123,12 @@ impl<T: MatrixElement<T>> Matrix<T> {
         Matrix::<T>::new(elements)
     }
 
+    fn is_same_size(&self, rhs: &Self) -> bool {
+        self.width == rhs.width && self.height == rhs.height
+    }
+
     fn assert_same_size(&self, rhs: &Self) {
-        if self.width != rhs.width || self.height != rhs.height {
+        if !self.is_same_size(rhs) {
             panic!(
                 "matrices must be of equal size, got {} x {} and {} x {}",
                 self.height, self.width, rhs.height, rhs.width
@@ -89,8 +136,12 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
+    fn can_multiply(&self, rhs: &Self) -> bool {
+        self.width == rhs.height
+    }
+
     fn assert_can_multiply(&self, rhs: &Self) {
-        if self.width != rhs.height {
+        if !self.can_multiply(rhs) {
             panic!(
                 "matrices must be of sizes n x m and m x p to multiply, got {} x {} and {} x {}",
                 self.height, self.width, rhs.height, rhs.width
@@ -108,6 +159,61 @@ impl<T: MatrixElement<T>> Matrix<T> {
                 "expected scalar value, got {} x {}",
                 self.height, self.width
             );
+        }
+    }
+
+    fn is_square(&self) -> bool {
+        self.width == self.height
+    }
+
+    fn assert_square(&self) {
+        if !self.is_square() {
+            panic!(
+                "expected square matrix, got {} x {}",
+                self.height, self.width
+            );
+        }
+    }
+
+    fn det(&mut self) -> T {
+        if let Some(det) = self.det {
+            return det;
+        }
+        let det = det(self);
+        self.det = Some(det);
+        det
+    }
+
+    fn rank(&mut self) -> u32 {
+        if let Some(rank) = self.rank {
+            return rank;
+        }
+        let rank = rank(self);
+        self.rank = Some(rank);
+        rank
+    }
+
+    fn is_singular(&mut self) -> bool {
+        self.det();
+        if let Some(det) = self.det {
+            return det == num::zero();
+        }
+        false
+    }
+
+    fn assert_singular(&mut self) {
+        if !self.is_singular() {
+            panic!("expected matrix to be singular, but determinant is not 0",);
+        }
+    }
+
+    fn is_regular(&mut self) -> bool {
+        !self.is_singular()
+    }
+
+    fn assert_regular(&mut self) {
+        if !self.is_regular() {
+            panic!("expected matrix to be regular, but determinant is 0");
         }
     }
 }
@@ -205,7 +311,7 @@ impl<T: MatrixElement<T>> Mul for Matrix<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::algebra::matrix::*;
+    use super::*;
 
     #[test]
     fn matrix_vector_multiplication() {
@@ -362,16 +468,12 @@ mod tests {
     #[test]
     fn multi_step_computation() {
         let left = Matrix::<i32>::scalar(10);
-        let middle_left = Matrix::<i32>::new(vec![
-            vec![1, 0, 0, 0],
-            vec![0, 1, 0, 0],
-            vec![0, 0, 1, 0],
-            vec![0, 0, 0, 1],
-        ]);
+        let middle_left = Matrix::<i32>::identity(4);
         let middle_right = Matrix::<i32>::vector(vec![1, 2, 3, 4]);
         let right = Matrix::<i32>::vector(vec![5, 6, 7, 8]);
+        let identity = Matrix::<i32>::identity_rect((4, 4));
         assert_eq!(
-            middle_left.scale(left) * -middle_right + right,
+            identity * (middle_left.scale(left) * -middle_right + right),
             Matrix::<i32>::vector(vec![-5, -14, -23, -32])
         );
     }
