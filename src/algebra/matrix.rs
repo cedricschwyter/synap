@@ -1,5 +1,5 @@
 use super::algorithms::*;
-use num::{Num, One, Zero};
+use num::{Complex, Num, One, Zero};
 use std::fmt::Debug;
 use std::ops::{Add, Index, IndexMut, Mul, Neg, Sub};
 
@@ -56,6 +56,14 @@ impl<T: MatrixElement<T>> Matrix<T> {
             is_orthonormal: None,
             is_unitary: None,
         }
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
     }
 
     pub fn identity(dimension: usize) -> Matrix<T> {
@@ -179,7 +187,7 @@ impl<T: MatrixElement<T>> Matrix<T> {
         if let Some(det) = self.det {
             return det;
         }
-        let det = det(self);
+        let det = det_naive(self);
         self.det = Some(det);
         det
     }
@@ -188,7 +196,7 @@ impl<T: MatrixElement<T>> Matrix<T> {
         if let Some(rank) = self.rank {
             return rank;
         }
-        let rank = rank(self);
+        let rank = rank_naive(self);
         self.rank = Some(rank);
         rank
     }
@@ -215,6 +223,12 @@ impl<T: MatrixElement<T>> Matrix<T> {
         if !self.is_regular() {
             panic!("expected matrix to be regular, but determinant is 0");
         }
+    }
+}
+
+impl<T: MatrixElement<T> + Num> Matrix<Complex<T>> {
+    pub fn hermitian(&self) -> Matrix<Complex<T>> {
+        unimplemented!();
     }
 }
 
@@ -284,28 +298,10 @@ impl<T: MatrixElement<T>> Mul for Matrix<T> {
 
     fn mul(self, rhs: Self) -> Self::Output {
         self.assert_can_multiply(&rhs);
-        let mut elements = Vec::<Vec<T>>::new();
         if self.height == 1 && rhs.width == 1 {
-            let mut value: T = self[0][0] * rhs[0][0];
-            for i in 1..self.width {
-                value = value + self[0][i] * rhs[i][0];
-            }
-            return Matrix::<T>::scalar(value);
+            return vec_vec_mul_naive(&self, &rhs);
         }
-        for row in 0..self.height {
-            elements.push(Vec::<T>::new());
-            for col in 0..rhs.width {
-                let mut r = Vec::<T>::new();
-                for i in 0..rhs.height {
-                    r.push(rhs[i][col]);
-                }
-                elements[row].push(
-                    (Matrix::<T>::vector(self[row].to_vec()).transpose() * Matrix::<T>::vector(r))
-                        .to_scalar(),
-                );
-            }
-        }
-        Matrix::<T>::new(elements)
+        mat_mat_mul_naive(&self, &rhs)
     }
 }
 
@@ -315,25 +311,25 @@ mod tests {
 
     #[test]
     fn matrix_vector_multiplication() {
-        let left = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let right = Matrix::<i32>::vector(vec![9, 10, 11]);
-        assert_eq!(left * right, Matrix::<i32>::vector(vec![32, 122, 212]));
+        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::<i32>::vector(vec![9, 10, 11]);
+        assert_eq!(lhs * rhs, Matrix::<i32>::vector(vec![32, 122, 212]));
     }
 
     #[test]
     #[should_panic]
     fn matrix_vector_multiplication_incompatible_size() {
-        let left = Matrix::<i32>::new(vec![vec![0, 1], vec![2, 3], vec![4, 5]]);
-        let right = Matrix::<i32>::vector(vec![6, 7, 8]);
-        let _ = left * right;
+        let lhs = Matrix::<i32>::new(vec![vec![0, 1], vec![2, 3], vec![4, 5]]);
+        let rhs = Matrix::<i32>::vector(vec![6, 7, 8]);
+        let _ = lhs * rhs;
     }
 
     #[test]
     fn matrix_multiplication() {
-        let left = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let right = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
         assert_eq!(
-            left * right,
+            lhs * rhs,
             Matrix::<i32>::new(vec![vec![9, 6, 3], vec![54, 42, 30], vec![99, 78, 57]])
         );
     }
@@ -341,16 +337,16 @@ mod tests {
     #[test]
     #[should_panic]
     fn matrix_multiplication_incompatible_size() {
-        let left = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let right = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3]]);
-        let _ = left * right;
+        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3]]);
+        let _ = lhs * rhs;
     }
 
     #[test]
     fn scalar_product() {
-        let left = Matrix::<u32>::vector(vec![0, 1, 2]).transpose();
-        let right = Matrix::<u32>::vector(vec![3, 4, 5]);
-        assert_eq!((left * right).to_scalar(), 14);
+        let lhs = Matrix::<u32>::vector(vec![0, 1, 2]).transpose();
+        let rhs = Matrix::<u32>::vector(vec![3, 4, 5]);
+        assert_eq!((lhs * rhs).to_scalar(), 14);
     }
 
     #[test]
@@ -422,17 +418,17 @@ mod tests {
 
     #[test]
     fn matrix_addition() {
-        let left = Matrix::<u32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let right = Matrix::<u32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
-        assert_eq!(left + right, Matrix::<u32>::new(vec![vec![8, 8, 8]; 3]));
+        let lhs = Matrix::<u32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::<u32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        assert_eq!(lhs + rhs, Matrix::<u32>::new(vec![vec![8, 8, 8]; 3]));
     }
 
     #[test]
     fn matrix_addition_with_negation() {
-        let left = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let right = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
         assert_eq!(
-            left + -right,
+            lhs + -rhs,
             Matrix::<i32>::new(vec![vec![-8, -6, -4], vec![-2, 0, 2], vec![4, 6, 8]])
         );
     }
@@ -440,40 +436,40 @@ mod tests {
     #[test]
     #[should_panic]
     fn matrix_addition_incorrect_size() {
-        let left = Matrix::<u32>::new(vec![vec![0, 1, 2]]);
-        let right = Matrix::<u32>::new(vec![vec![3, 4, 5], vec![6, 7, 8]]);
-        let _ = left + right;
+        let lhs = Matrix::<u32>::new(vec![vec![0, 1, 2]]);
+        let rhs = Matrix::<u32>::new(vec![vec![3, 4, 5], vec![6, 7, 8]]);
+        let _ = lhs + rhs;
     }
 
     #[test]
     fn scalar_matrix_multiplication() {
-        let left = Matrix::<i32>::scalar(5);
-        let right = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let lhs = Matrix::<i32>::scalar(5);
+        let rhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
         assert_eq!(
-            right.scale(left),
+            rhs.scale(lhs),
             Matrix::<i32>::new(vec![vec![0, 5, 10], vec![15, 20, 25], vec![30, 35, 40]])
         );
     }
 
     #[test]
     fn scalar_vector_multiplication() {
-        let left = Matrix::<i32>::scalar(5);
-        let right = Matrix::<i32>::vector(vec![0, 1, 2, 3, 4]);
+        let lhs = Matrix::<i32>::scalar(5);
+        let rhs = Matrix::<i32>::vector(vec![0, 1, 2, 3, 4]);
         assert_eq!(
-            right.scale(left),
+            rhs.scale(lhs),
             Matrix::<i32>::vector(vec![0, 5, 10, 15, 20])
         );
     }
 
     #[test]
     fn multi_step_computation() {
-        let left = Matrix::<i32>::scalar(10);
-        let middle_left = Matrix::<i32>::identity(4);
-        let middle_right = Matrix::<i32>::vector(vec![1, 2, 3, 4]);
-        let right = Matrix::<i32>::vector(vec![5, 6, 7, 8]);
+        let lhs = Matrix::<i32>::scalar(10);
+        let middle_lhs = Matrix::<i32>::identity(4);
+        let middle_rhs = Matrix::<i32>::vector(vec![1, 2, 3, 4]);
+        let rhs = Matrix::<i32>::vector(vec![5, 6, 7, 8]);
         let identity = Matrix::<i32>::identity_rect((4, 4));
         assert_eq!(
-            identity * (middle_left.scale(left) * -middle_right + right),
+            identity * (middle_lhs.scale(lhs) * -middle_rhs + rhs),
             Matrix::<i32>::vector(vec![-5, -14, -23, -32])
         );
     }
@@ -485,6 +481,16 @@ mod tests {
         assert_eq!(
             matrix * identity,
             Matrix::<i32>::new(vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 10])
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn hermitian_transpose() {
+        let matrix = Matrix::<Complex<i32>>::new(vec![vec![]]);
+        assert_eq!(
+            matrix.transpose(),
+            Matrix::<Complex<i32>>::new(vec![vec![]])
         );
     }
 }
