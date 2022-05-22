@@ -1,3 +1,8 @@
+//! This module defines one of the most fundamental objects of the project: the matrix.
+//! Be careful, it is also the only abstract mathematical object that will be implemented, as
+//! vectors and scalars are also just matrices of special sizes in the end. This simplifies a lot
+//! of the functionality of the project and reduces a bunch of boilerplate code.
+
 use super::algorithms::*;
 use num::{Complex, Num, One, Zero};
 use std::fmt::Debug;
@@ -157,6 +162,16 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
+    fn is_vector(&self) -> bool {
+        self.width == 1
+    }
+
+    fn assert_vector(&self) {
+        if !self.is_vector() {
+            panic!("expected matrix to be 1 wide, but was {}", self.width);
+        }
+    }
+
     fn is_scalar(&self) -> bool {
         self.width == 1 && self.height == 1
     }
@@ -224,11 +239,31 @@ impl<T: MatrixElement<T>> Matrix<T> {
             panic!("expected matrix to be regular, but determinant is 0");
         }
     }
+
+    fn is_symmetric(&self) -> bool {
+        self.transpose() == *self
+    }
+
+    fn assert_symmetric(&self) {
+        if !self.is_symmetric() {
+            panic!("expected matrix to be symmetic, but is not");
+        }
+    }
 }
 
 impl<T: MatrixElement<T> + Num> Matrix<Complex<T>> {
     pub fn hermitian(&self) -> Matrix<Complex<T>> {
         unimplemented!();
+    }
+
+    fn is_hermitian(&self) -> bool {
+        self.hermitian() == *self
+    }
+
+    fn assert_hermitian(&self) {
+        if !self.is_hermitian() {
+            panic!("expected matrix to be hermitian, but is not");
+        }
     }
 }
 
@@ -299,9 +334,9 @@ impl<T: MatrixElement<T>> Mul for Matrix<T> {
     fn mul(self, rhs: Self) -> Self::Output {
         self.assert_can_multiply(&rhs);
         if self.height == 1 && rhs.width == 1 {
-            return vec_vec_mul_naive(&self, &rhs);
+            return euclidean_scalar_product_naive(&self, &rhs);
         }
-        mat_mat_mul_naive(&self, &rhs)
+        mat_mul_naive(&self, &rhs)
     }
 }
 

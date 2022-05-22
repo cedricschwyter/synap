@@ -9,3 +9,6 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 num = "0.4.0"
+
+[package.metadata.docs.rs]
+rustdoc-args = [ "--html-in-header", "katex-header.html" ]
