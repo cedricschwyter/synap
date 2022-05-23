@@ -6,21 +6,39 @@
 use super::algorithms::*;
 use num::{Complex, Num, One, Zero};
 use std::fmt::Debug;
-use std::ops::{Add, Index, IndexMut, Mul, Neg, Sub};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
 
-pub trait MatrixElement<T>:
-    PartialEq + Debug + Copy + Add<T, Output = T> + Mul<T, Output = T> + Sub<T, Output = T> + Zero + One
+/// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
+/// matrix implementation is quite literally useless.
+/// Note that this trait essentially defines the axioms of a field. Therefore matrices can be
+/// constructed over an arbitrary field and are not restricted to the built-in numeric/complex
+/// types, and it is guaranteed that all the algorithms work.
+pub trait FieldElement<T>:
+    PartialEq
+    + Eq
+    + Debug
+    + Copy
+    + Add<T, Output = T>
+    + Sub<T, Output = T>
+    + Mul<T, Output = T>
+    + Div<T, Output = T>
+    + Zero
+    + One
 {
 }
 
-impl<T: Num + Debug + Copy> MatrixElement<T> for T {}
+/// Blanket-implementation for all built-in numeric types
+impl<T: Num + Eq + Debug + Copy> FieldElement<T> for T {}
 
+/// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
+/// perform expensive computations only once and cache the result. The struct is guaranteed to be
+/// in an internally consistent state at all times.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Matrix<T: MatrixElement<T>> {
+pub struct Matrix<T: FieldElement<T>> {
     elements: Vec<Vec<T>>,
     width: usize,
     height: usize,
-    rank: Option<u32>,
+    rank: Option<usize>,
     det: Option<T>,
     row_echelon_form: Option<Vec<Vec<T>>>,
     lu_decomposition: Option<Vec<Vec<T>>>,
@@ -31,7 +49,13 @@ pub struct Matrix<T: MatrixElement<T>> {
     is_unitary: Option<bool>,
 }
 
-impl<T: MatrixElement<T>> Matrix<T> {
+/// Default implementation of functions and methods for arbitrary fields
+impl<T: FieldElement<T>> Matrix<T> {
+    /// Default constructor. All matrix initialization is supposed to go through this call to
+    /// ensure internal consistency with dimension values.
+    ///
+    /// * `elements` - a two dimensional vector of field elements representing the rows of a
+    /// matrix, rows are expected to be of the same length
     pub fn new(elements: Vec<Vec<T>>) -> Matrix<T> {
         if elements.is_empty() {
             panic!("attempting to create matrix with no elements");
@@ -63,14 +87,30 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
+    /// Getter for the width of the matrix
     pub fn width(&self) -> usize {
         self.width
     }
 
+    /// Getter for the height of the matrix
     pub fn height(&self) -> usize {
         self.height
     }
 
+    /// Creates an identity matrix of square dimensions as given by the parameter.
+    /// Returns
+    /// $$
+    /// \mathbb{I}\_d
+    /// = \begin{bmatrix}
+    /// 1 & 0 & ... & 0 \\\\
+    /// 0 & 1 & ... & 0 \\\\
+    /// \vdots & \vdots & \ddots & \vdots \\\\
+    /// 0 & 0 & ... & 1
+    /// \end{bmatrix}
+    /// $$
+    /// where $d$ is the dimension.
+    ///
+    /// * `dimension` - the dimension of the square identity matrix, given above by $d$
     pub fn identity(dimension: usize) -> Matrix<T> {
         let mut elements = vec![vec![num::zero(); dimension]; dimension];
         for row in 0..dimension {
@@ -83,7 +123,23 @@ impl<T: MatrixElement<T>> Matrix<T> {
         Matrix::<T>::new(elements)
     }
 
-    pub fn identity_rect((height, width): (usize, usize)) -> Matrix<T> {
+    /// Creates an identity matrix of rectangular dimensions as given by the parameters.
+    /// Returns
+    /// $$
+    /// \mathbb{I}\_{n \times m}
+    /// = \begin{bmatrix}
+    /// 1 & 0 & ... & 0 & ... \\\\
+    /// 0 & 1 & ... & 0 & ... \\\\
+    /// \vdots & \vdots & \ddots & \vdots & ... \\\\
+    /// 0 & 0 & ... & 1 & ... \\\\
+    /// \vdots & \vdots & \vdots & \vdots & \ddots
+    /// \end{bmatrix}
+    /// $$
+    /// where $n \times m$ is the dimension.
+    ///
+    /// * `height` - the height of the identity matrix, given above by $n$
+    /// * `width` - the width of the identity matrix, given above by $m$
+    pub fn identity_rect(height: usize, width: usize) -> Matrix<T> {
         let mut elements = vec![vec![num::zero(); width]; height];
         for row in 0..height {
             for col in 0..width {
@@ -95,24 +151,29 @@ impl<T: MatrixElement<T>> Matrix<T> {
         Matrix::<T>::new(elements)
     }
 
+    /// Convenience constructor for a vector $x$, that is, a $\dim x \times 1$ matrix.
+    ///
+    /// * `elements` - a vector of length $\dim x$ of elements corresponding to the elements of $x$
     pub fn vector(elements: Vec<T>) -> Matrix<T> {
         Matrix::<T>::new(vec![elements]).transpose()
     }
 
+    /// Convenience constructor for a scalar $\alpha$, that is, a $1 \times 1$ matrix.
+    ///
+    /// * `element` - a single element representing the scalar value of $\alpha$
     pub fn scalar(element: T) -> Matrix<T> {
         Matrix::<T>::vector(vec![element])
     }
 
+    /// Unwraps the $1 \times 1$ matrix into the underlying field element $\alpha$.
+    /// Panics if the matrix is not of dimension $1 \times 1$.
     pub fn to_scalar(&self) -> T {
-        if self.width != 1 || self.height != 1 {
-            panic!(
-                "cannot convert matrix of size {} x {} to scalar, has to be 1 x 1",
-                self.height, self.width
-            );
-        }
+        self.assert_scalar();
         self[0][0]
     }
 
+    /// Computes the transpose of the matrix, that is, if the matrix $A$ is of dimension $n \times
+    /// m$ the method returns $A^T$ of size $m \times n$
     pub fn transpose(&self) -> Matrix<T> {
         let mut elements = Vec::<Vec<T>>::new();
         for col in 0..self.width {
@@ -124,6 +185,9 @@ impl<T: MatrixElement<T>> Matrix<T> {
         Matrix::<T>::new(elements)
     }
 
+    /// Scales a matrix $A$ by a scalar $\alpha$.
+    ///
+    /// * `lhs` - corresponds to $\alpha$ above, expected to be of size $1 \times 1$
     pub fn scale(&self, lhs: Matrix<T>) -> Matrix<T> {
         lhs.assert_scalar();
         let mut elements = Vec::<Vec<T>>::new();
@@ -136,11 +200,20 @@ impl<T: MatrixElement<T>> Matrix<T> {
         Matrix::<T>::new(elements)
     }
 
-    fn is_same_size(&self, rhs: &Self) -> bool {
+    /// Checks whether two matrices of the same type are the same size. This is exactly then the
+    /// case for two matrices $A$ and $B$ when $A$ and $B$ are both of dimension $n \times m$.
+    ///
+    /// * `rhs` - the matrix to compare against, corresponds to $B$ above
+    pub fn is_same_size(&self, rhs: &Self) -> bool {
         self.width == rhs.width && self.height == rhs.height
     }
 
-    fn assert_same_size(&self, rhs: &Self) {
+    /// Asserts that two matrices of the same type are the same size. This is exactly then the
+    /// case for two matrices $A$ and $B$ when $A$ and $B$ are both of dimension $n \times m$.
+    /// Panics otherwise.
+    ///
+    /// * `rhs` - the matrix to compare against, corresponds to $B$ above
+    pub fn assert_same_size(&self, rhs: &Self) {
         if !self.is_same_size(rhs) {
             panic!(
                 "matrices must be of equal size, got {} x {} and {} x {}",
@@ -149,11 +222,21 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
-    fn can_multiply(&self, rhs: &Self) -> bool {
+    /// Checks whether two matrices can be multiplied. This is exactly then the case for two
+    /// matrices $A$ and $B$ when $A$ is of dimension $n \times m$ and $B$ is of dimension $m
+    /// \times p$.
+    ///
+    /// * `rhs` - the right hand side of the multiplication, corresponds to $B$ above
+    pub fn can_multiply(&self, rhs: &Self) -> bool {
         self.width == rhs.height
     }
 
-    fn assert_can_multiply(&self, rhs: &Self) {
+    /// Asserts that two matrices can be multiplied. This is exactly then the case for two
+    /// matrices $A$ and $B$ when $A$ is of dimension $n \times m$ and $B$ is of dimension $m
+    /// \times p$. Panics otherwise.
+    ///
+    /// * `rhs` - the right hand side of the multiplication, corresponds to $B$ above
+    pub fn assert_can_multiply(&self, rhs: &Self) {
         if !self.can_multiply(rhs) {
             panic!(
                 "matrices must be of sizes n x m and m x p to multiply, got {} x {} and {} x {}",
@@ -162,21 +245,25 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
-    fn is_vector(&self) -> bool {
+    /// Checks whether the matrix $x$ is a vector, that is, whether $x$ has dimension $\dim x \times 1$.
+    pub fn is_vector(&self) -> bool {
         self.width == 1
     }
 
-    fn assert_vector(&self) {
+    /// Asserts that the matrix $x$ is a vector, that is, that $x$ has dimension $\dim x \times 1$. Panics otherwise.
+    pub fn assert_vector(&self) {
         if !self.is_vector() {
             panic!("expected matrix to be 1 wide, but was {}", self.width);
         }
     }
 
-    fn is_scalar(&self) -> bool {
+    /// Checks whether the matrix $\alpha$ is a scalar, that is, whether $\alpha$ has dimension $1 \times 1$.
+    pub fn is_scalar(&self) -> bool {
         self.width == 1 && self.height == 1
     }
 
-    fn assert_scalar(&self) {
+    /// Asserts that the matrix $\alpha$ is a scalar, that is, that $\alpha$ has dimension $1 \times 1$. Panics otherwise.
+    pub fn assert_scalar(&self) {
         if !self.is_scalar() {
             panic!(
                 "expected scalar value, got {} x {}",
@@ -185,11 +272,13 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
-    fn is_square(&self) -> bool {
+    /// Checks whether the matrix $A$ is a square matrix, that is, whether $A$ has dimension $n \times n$.
+    pub fn is_square(&self) -> bool {
         self.width == self.height
     }
 
-    fn assert_square(&self) {
+    /// Asserts that the matrix $A$ is a square matrix, that is, that $A$ has dimension $n \times n$. Panics otherwise.
+    pub fn assert_square(&self) {
         if !self.is_square() {
             panic!(
                 "expected square matrix, got {} x {}",
@@ -198,60 +287,181 @@ impl<T: MatrixElement<T>> Matrix<T> {
         }
     }
 
-    fn det(&mut self) -> T {
+    /// Returns the determinant of the matrix $A$, that is, returns $\det A$.
+    /// If $\det A$ has already been computed it returns the cached value. If not, and if $A$ is a
+    /// square matrix, then it may perform the comparatively expensive computation. If $A$ is
+    /// non-square then no determinant must be computed as then $\det A = 0$.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and both $\det A$ and $\text{rank} A$ have not
+    /// already been computed and cached.
+    ///
+    /// ## Note:
+    /// Here we made use of the provable fact that for any $n \times n$ matrix $A$ it holds that
+    /// $$
+    /// \det A \neq 0 \iff \text{rank} A = n.
+    /// $$
+    /// This allows to optimize the algorithm depending on whether the rank $\text{rank} A$ has
+    /// already been computed.
+    pub fn det(&mut self) -> T {
         if let Some(det) = self.det {
             return det;
         }
-        let det = det_naive(self);
+        let mut det = num::zero();
+        if self.is_square() {
+            if let Some(rank) = self.rank {
+                if rank != self.height() {
+                    self.det = Some(det);
+                    return det;
+                }
+            }
+            det = det_naive(self);
+            self.det = Some(det);
+            return det;
+        }
+        det = num::zero();
         self.det = Some(det);
         det
     }
 
-    fn rank(&mut self) -> u32 {
+    /// Returns the rank of the matrix $A$, that is, returns $\text{rank} A$.
+    /// If $\text{rank} A$ has already been computed it returns the cached value, if not, then
+    /// it may perform the comparatively expensive computation.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and both $\det A$ and $\text{rank} A$ have not
+    /// already been computed and cached.
+    ///
+    /// ## Note:
+    /// Here we made use of the provable fact that for any $n \times n$ matrix $A$ it holds that
+    /// $$
+    /// \det A \neq 0 \iff \text{rank} A = n.
+    /// $$
+    /// This allows to optimize the algorithm depending on whether the determinant $\det A$ has
+    /// already been computed.
+    pub fn rank(&mut self) -> usize {
         if let Some(rank) = self.rank {
             return rank;
         }
+        if self.is_square() {
+            if let Some(det) = self.det {
+                if det != num::zero() {
+                    let rank = self.height();
+                    self.rank = Some(rank);
+                    return rank;
+                }
+            }
+        }
         let rank = rank_naive(self);
         self.rank = Some(rank);
-        rank
+        return rank;
     }
 
-    fn is_singular(&mut self) -> bool {
-        self.det();
-        if let Some(det) = self.det {
-            return det == num::zero();
+    /// Checks whether the matrix $A$ is full rank, i.e., if $A$ is of dimension $n \times n$ it checks whether $\text{rank} A = n$.
+    /// Returns false otherwise as by the theorem we used in other methods already:
+    ///
+    /// ## Note:
+    /// Here we made use of the provable fact that for any $n \times n$ matrix $A$ it holds that
+    /// $$
+    /// \det A \neq 0 \iff \text{rank} A = n.
+    /// $$
+    /// This allows to optimize the algorithm depending on whether the determinant $\det A$ or rank
+    /// $\text{rank} A$ has already been computed.
+    pub fn is_full_rank(&mut self) -> bool {
+        if self.is_singular() {
+            return false;
         }
-        false
+        true
     }
 
-    fn assert_singular(&mut self) {
+    /// Asserts that the matrix $A$ is full rank, i.e., if $A$ is of dimension $n \times n$ it asserts that $\text{rank} A = n$.
+    /// Panics otherwise as by the theorem we used in other methods already:
+    ///
+    /// ## Note:
+    /// Here we made use of the provable fact that for any $n \times n$ matrix $A$ it holds that
+    /// $$
+    /// \det A \neq 0 \iff \text{rank} A = n.
+    /// $$
+    /// This allows to optimize the algorithm depending on whether the determinant $\det A$ or rank
+    /// $\text{rank} A$ has already been computed.
+    pub fn assert_full_rank(&mut self) {
+        if !self.is_full_rank() {
+            panic!("expected matrix to be full rank, but was not");
+        }
+    }
+
+    /// Checks whether the matrix $A$ is singular, that is, whether its determinant $\det A$ is
+    /// $\det A = 0$.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and both $\det A$ and $\text{rank} A$ have not
+    /// already been computed and cached.
+    pub fn is_singular(&mut self) -> bool {
+        self.det() == num::zero()
+    }
+
+    /// Asserts that the matrix $A$ is singular, that is, that its determinant $\det A$ is
+    /// $\det A = 0$. Panics otherwise.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and both $\det A$ and $\text{rank} A$ have not
+    /// already been computed and cached.
+    pub fn assert_singular(&mut self) {
         if !self.is_singular() {
             panic!("expected matrix to be singular, but determinant is not 0",);
         }
     }
 
-    fn is_regular(&mut self) -> bool {
+    /// Checks whether the matrix $A$ is regular, that is, whether its determinant $\det A$ is
+    /// $\det A \neq 0$.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and both $\det A$ and $\text{rank} A$ have not
+    /// already been computed and cached.
+    pub fn is_regular(&mut self) -> bool {
         !self.is_singular()
     }
 
-    fn assert_regular(&mut self) {
+    /// Asserts that the matrix $A$ is regular, that is, that its determinant $\det A$ is
+    /// $\det A \neq 0$. Panics otherwise.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and both $\det A$ and $\text{rank} A$ have not
+    /// already been computed and cached.
+    pub fn assert_regular(&mut self) {
         if !self.is_regular() {
             panic!("expected matrix to be regular, but determinant is 0");
         }
     }
 
-    fn is_symmetric(&self) -> bool {
+    /// Checks whether the matrix $A$ is symmetric, that is, whether it holds that $A^T = A$.
+    pub fn is_symmetric(&self) -> bool {
         self.transpose() == *self
     }
 
-    fn assert_symmetric(&self) {
+    /// Asserts that the matrix $A$ is symmetric, that is, that it holds that $A^T = A$.
+    /// Panics otherwise.
+    pub fn assert_symmetric(&self) {
         if !self.is_symmetric() {
             panic!("expected matrix to be symmetic, but is not");
         }
     }
+
+    /// Checks whether the matrix $A$ is skew-symmetric, that is, whether it holds that $A^T = -A$.
+    pub fn is_skew_symmetric(&self) -> bool {
+        unimplemented!();
+    }
+
+    /// Asserts that the matrix $A$ is skew-symmetric, that is, that it holds that $A^T = -A$.
+    /// Panics otherwise.
+    pub fn assert_skew_symmetric(&self) {
+        if !self.is_skew_symmetric() {
+            panic!("expected matrix to be skew-symmetric, but is not");
+        }
+    }
 }
 
-impl<T: MatrixElement<T> + Num> Matrix<Complex<T>> {
+impl<T: FieldElement<T> + Num> Matrix<Complex<T>> {
     pub fn hermitian(&self) -> Matrix<Complex<T>> {
         unimplemented!();
     }
@@ -267,7 +477,7 @@ impl<T: MatrixElement<T> + Num> Matrix<Complex<T>> {
     }
 }
 
-impl<T: MatrixElement<T>> Index<usize> for Matrix<T> {
+impl<T: FieldElement<T>> Index<usize> for Matrix<T> {
     type Output = Vec<T>;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -275,13 +485,13 @@ impl<T: MatrixElement<T>> Index<usize> for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T>> IndexMut<usize> for Matrix<T> {
+impl<T: FieldElement<T>> IndexMut<usize> for Matrix<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.elements[index]
     }
 }
 
-impl<T: MatrixElement<T>> Add for Matrix<T> {
+impl<T: FieldElement<T>> Add for Matrix<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -297,7 +507,7 @@ impl<T: MatrixElement<T>> Add for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T>> Sub for Matrix<T> {
+impl<T: FieldElement<T>> Sub for Matrix<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -313,7 +523,7 @@ impl<T: MatrixElement<T>> Sub for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T> + Neg<Output = T>> Neg for Matrix<T> {
+impl<T: FieldElement<T> + Neg<Output = T>> Neg for Matrix<T> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -328,7 +538,7 @@ impl<T: MatrixElement<T> + Neg<Output = T>> Neg for Matrix<T> {
     }
 }
 
-impl<T: MatrixElement<T>> Mul for Matrix<T> {
+impl<T: FieldElement<T>> Mul for Matrix<T> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -502,7 +712,7 @@ mod tests {
         let middle_lhs = Matrix::<i32>::identity(4);
         let middle_rhs = Matrix::<i32>::vector(vec![1, 2, 3, 4]);
         let rhs = Matrix::<i32>::vector(vec![5, 6, 7, 8]);
-        let identity = Matrix::<i32>::identity_rect((4, 4));
+        let identity = Matrix::<i32>::identity_rect(4, 4);
         assert_eq!(
             identity * (middle_lhs.scale(lhs) * -middle_rhs + rhs),
             Matrix::<i32>::vector(vec![-5, -14, -23, -32])

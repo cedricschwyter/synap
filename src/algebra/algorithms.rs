@@ -2,6 +2,13 @@
 //! functions generally expect that all relevant checks (i.e., matrix/vector dimension validation)
 //! are performed by the caller. This is in the hopes to be able to save computing resources during
 //! actual execution of an algorithm.
+//!
+//! # NOTE:
+//! If you are a client of the library it is recommended to use the methods on the [`Matrix`](super::matrix::Matrix) struct
+//! that implement the required behaviour as these functions perform the necessary assertions and
+//! generally choose the most appropriate algorithm for the job automatically.
+//! Unless you wish to explicitely execute a specific algorithm, you are most likely looking in the
+//! wrong place right now.
 
 use num::{pow, Float};
 
@@ -14,7 +21,7 @@ use crate::algebra::matrix::*;
 /// * `lhs` - corresponds to $x^T$ above, is expected to be in transposed form ($x^T$) already,
 /// thus of size $1 \times d$
 /// * `rhs` - corresponds to $y$ above, expected to be of size $d \times 1$
-pub fn euclidean_scalar_product_naive<T: MatrixElement<T>>(
+pub fn euclidean_scalar_product_naive<T: FieldElement<T>>(
     lhs: &Matrix<T>,
     rhs: &Matrix<T>,
 ) -> Matrix<T> {
@@ -29,8 +36,8 @@ pub fn euclidean_scalar_product_naive<T: MatrixElement<T>>(
 /// $\lvert \lvert x \rvert \rvert = \sqrt{\langle x, x \rangle}$ of a vector $x$ that returns a
 /// scalar matrix (a 1 x 1 matrix) corresponding to the numerical value of the norm.
 ///
-/// * `matrix` - corresponds to $x$ above, expected to be of size $\dim(x) \times 1$
-pub fn euclidean_norm_naive<T: MatrixElement<T> + Float>(matrix: &Matrix<T>) -> Matrix<T> {
+/// * `matrix` - corresponds to $x$ above, expected to be of size $\dim x \times 1$
+pub fn euclidean_norm_naive<T: FieldElement<T> + Float>(matrix: &Matrix<T>) -> Matrix<T> {
     Matrix::<T>::scalar(
         euclidean_scalar_product_naive(matrix, matrix)
             .to_scalar()
@@ -41,8 +48,8 @@ pub fn euclidean_norm_naive<T: MatrixElement<T> + Float>(matrix: &Matrix<T>) -> 
 /// A naive implementation of the more general $p$-norm: $\lvert \lvert x \rvert \rvert_p =
 /// (\lvert x_1 \rvert ^ p + ... + \lvert x_n \rvert ^ p)^\frac{1}{p}$.
 ///
-/// * `matrix` - corresponds to the $x$ above, expected to be of size $\dim(x) \times 1$
-pub fn p_norm_naive<T: MatrixElement<T> + Float>(matrix: &Matrix<T>, p: usize) -> Matrix<T> {
+/// * `matrix` - corresponds to the $x$ above, expected to be of size $\dim x \times 1$
+pub fn p_norm_naive<T: FieldElement<T> + Float>(matrix: &Matrix<T>, p: usize) -> Matrix<T> {
     let mut value: T = num::zero();
     for i in 0..matrix.height() {
         value = value + pow(matrix[i][0], p);
@@ -52,12 +59,12 @@ pub fn p_norm_naive<T: MatrixElement<T> + Float>(matrix: &Matrix<T>, p: usize) -
 
 /// A naive implementation of the matrix multiplication algorithm, a classic $O(n^3)$
 /// implementation.
-/// It multiplies together matrices $x, y$ of sizes $n \times m$ and $m \times p$ respectively and
+/// It multiplies together matrices $A, B$ of sizes $n \times m$ and $m \times p$ respectively and
 /// returns a matrix of size $n \times p$.
 ///
-/// * `lhs` - corresponds to $x$ above, expected to be of size $n \times m$
-/// * `rhs` - corresponds to $y$ above, expected to be of size $m \times p$
-pub fn mat_mul_naive<T: MatrixElement<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
+/// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
+/// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
+pub fn mat_mul_naive<T: FieldElement<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
     let mut elements = Vec::<Vec<T>>::new();
     for row in 0..lhs.height() {
         elements.push(Vec::<T>::new());
@@ -75,27 +82,27 @@ pub fn mat_mul_naive<T: MatrixElement<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> M
     Matrix::<T>::new(elements)
 }
 
-pub fn gauss_elim_naive<T: MatrixElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn gauss_elim_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
     unreachable!();
 }
 
-pub fn lu_decomp_naive<T: MatrixElement<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
+pub fn lu_decomp_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
     unreachable!();
 }
 
-pub fn qr_decomp_naive<T: MatrixElement<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
+pub fn qr_decomp_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
     unreachable!();
 }
 
-pub fn det_naive<T: MatrixElement<T>>(matrix: &Matrix<T>) -> T {
+pub fn det_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> T {
     unreachable!();
 }
 
-pub fn rank_naive<T: MatrixElement<T>>(matrix: &Matrix<T>) -> u32 {
+pub fn rank_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> usize {
     unreachable!();
 }
 
-pub fn gram_schmidt<T: MatrixElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn gram_schmidt<T: FieldElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
     unimplemented!();
 }
 
