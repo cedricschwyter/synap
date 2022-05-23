@@ -27,7 +27,7 @@ pub trait FieldElement<T>:
 {
 }
 
-/// Blanket-implementation for all built-in numeric types
+/// Blanket-implementation for all built-in numeric types.
 impl<T: Num + Eq + Debug + Copy> FieldElement<T> for T {}
 
 /// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
@@ -49,7 +49,7 @@ pub struct Matrix<T: FieldElement<T>> {
     is_unitary: Option<bool>,
 }
 
-/// Default implementation of functions and methods for arbitrary fields
+/// Default implementation of functions and methods for arbitrary fields.
 impl<T: FieldElement<T>> Matrix<T> {
     /// Default constructor. All matrix initialization is supposed to go through this call to
     /// ensure internal consistency with dimension values.
@@ -173,7 +173,7 @@ impl<T: FieldElement<T>> Matrix<T> {
     }
 
     /// Computes the transpose of the matrix, that is, if the matrix $A$ is of dimension $n \times
-    /// m$ the method returns $A^T$ of size $m \times n$
+    /// m$ the method returns $A^T$ of size $m \times n$.
     pub fn transpose(&self) -> Matrix<T> {
         let mut elements = Vec::<Vec<T>>::new();
         for col in 0..self.width {
@@ -461,16 +461,20 @@ impl<T: FieldElement<T>> Matrix<T> {
     }
 }
 
+/// Special implementation for complex numbers.
 impl<T: FieldElement<T> + Num> Matrix<Complex<T>> {
+    /// Computes the hermitian transpose of a matrix $A$, that is, computes $A^H$.
     pub fn hermitian(&self) -> Matrix<Complex<T>> {
         unimplemented!();
     }
 
-    fn is_hermitian(&self) -> bool {
+    /// Checks whether the matrix $A$ is hermitian, that is, whether it holds that $A^H = A$.
+    pub fn is_hermitian(&self) -> bool {
         self.hermitian() == *self
     }
 
-    fn assert_hermitian(&self) {
+    /// Asserts that the matrix $A$ is hermitian, that is, that it holds that $A^H = A$.
+    pub fn assert_hermitian(&self) {
         if !self.is_hermitian() {
             panic!("expected matrix to be hermitian, but is not");
         }
