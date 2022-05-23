@@ -1,2 +1,0 @@
-[build]
-rustdocflags = [ "--html-in-header", "/home/d3psi/Documents/rust-workspace/synap/katex-header.html" ]
