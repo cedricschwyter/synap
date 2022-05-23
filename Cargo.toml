@@ -1,6 +1,6 @@
 [package]
 name = "synap"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "a tiny software neural network and linear algebra library"
 license = "GPL-3.0-or-later"
