@@ -6,7 +6,7 @@
 use super::algorithms::*;
 use num::{Complex, Num, One, Zero};
 use std::fmt::Debug;
-use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Sub};
+use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Rem, Sub};
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
@@ -22,6 +22,7 @@ pub trait FieldElement<T>:
     + Sub<T, Output = T>
     + Mul<T, Output = T>
     + Div<T, Output = T>
+    + Rem<T, Output = T>
     + Zero
     + One
 {
@@ -461,11 +462,50 @@ impl<T: FieldElement<T>> Matrix<T> {
     }
 }
 
+/// Defines an iterator for [`Matrix`](Matrix) structs
+pub struct MatrixIterator<T: FieldElement<T>> {
+    matrix: Matrix<T>,
+    row: usize,
+}
+
+impl<T: FieldElement<T>> IntoIterator for Matrix<T> {
+    type Item = Vec<T>;
+    type IntoIter = MatrixIterator<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        MatrixIterator {
+            matrix: self,
+            row: 0,
+        }
+    }
+}
+
+impl<T: FieldElement<T>> Iterator for MatrixIterator<T> {
+    type Item = Vec<T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row < self.matrix.height() {
+            let row = &self.matrix[self.row];
+            self.row += 1;
+            return Some(row.to_vec());
+        }
+        None
+    }
+}
+
 /// Special implementation for complex numbers.
-impl<T: FieldElement<T> + Num> Matrix<Complex<T>> {
+impl<T: FieldElement<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
     /// Computes the hermitian transpose of a matrix $A$, that is, computes $A^H$.
     pub fn hermitian(&self) -> Matrix<Complex<T>> {
-        unimplemented!();
+        let mut transpose = self.transpose();
+        for row in 0..transpose.height() {
+            for col in 0..transpose.width() {
+                transpose[row][col] = Complex {
+                    re: transpose[row][col].re,
+                    im: -transpose[row][col].im,
+                };
+            }
+        }
+        transpose
     }
 
     /// Checks whether the matrix $A$ is hermitian, that is, whether it holds that $A^H = A$.
@@ -734,12 +774,55 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn hermitian_transpose() {
-        let matrix = Matrix::<Complex<i32>>::new(vec![vec![]]);
+        let matrix = Matrix::<Complex<i32>>::new(vec![
+            vec![
+                Complex::new(0, 0),
+                Complex::new(0, 1),
+                Complex::new(0, 2),
+                Complex::new(0, 3),
+                Complex::new(0, 4),
+            ],
+            vec![
+                Complex::new(1, 0),
+                Complex::new(1, 1),
+                Complex::new(1, 2),
+                Complex::new(1, 3),
+                Complex::new(1, 4),
+            ],
+            vec![
+                Complex::new(2, 0),
+                Complex::new(2, 1),
+                Complex::new(2, 2),
+                Complex::new(2, 3),
+                Complex::new(2, 4),
+            ],
+        ]);
         assert_eq!(
-            matrix.transpose(),
-            Matrix::<Complex<i32>>::new(vec![vec![]])
+            matrix.hermitian(),
+            Matrix::<Complex<i32>>::new(vec![
+                vec![Complex::new(0, 0), Complex::new(1, 0), Complex::new(2, 0)],
+                vec![
+                    Complex::new(0, -1),
+                    Complex::new(1, -1),
+                    Complex::new(2, -1)
+                ],
+                vec![
+                    Complex::new(0, -2),
+                    Complex::new(1, -2),
+                    Complex::new(2, -2)
+                ],
+                vec![
+                    Complex::new(0, -3),
+                    Complex::new(1, -3),
+                    Complex::new(2, -3)
+                ],
+                vec![
+                    Complex::new(0, -4),
+                    Complex::new(1, -4),
+                    Complex::new(2, -4)
+                ]
+            ])
         );
     }
 }
