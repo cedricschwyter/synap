@@ -10,14 +10,14 @@ use std::ops::{Add, Div, Index, Mul, Neg, Rem, Sub};
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
-/// Note that this trait essentially defines the axioms of a field. Therefore matrices can be
+/// Note that this trait enforces the axioms of a field. Therefore matrices can be
 /// constructed over an arbitrary field and are not restricted to the built-in numeric/complex
 /// types, and it is guaranteed that all the algorithms work. Except for the additive inverse
 /// operation (trait [`Neg`](std::ops::Neg)) all field axioms are enforced by the compiler. We deliberately do not
 /// require the [`Neg`](std::ops::Neg) trait to be implemented, as this would restrict the type `T` to only signed
 /// types, which may not be required in all situations. In functions/methods where the additive
 /// inverse operation is required it is bounded separately.
-pub trait FieldElement<T>:
+pub trait Field<T>:
     PartialEq
     + Debug
     + Copy
@@ -32,13 +32,13 @@ pub trait FieldElement<T>:
 }
 
 /// Blanket-implementation for all built-in numeric types.
-impl<T: Num + Debug + Copy> FieldElement<T> for T {}
+impl<T: Num + Debug + Copy> Field<T> for T {}
 
 /// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
 /// perform expensive computations only once and caching the results. The struct is guaranteed to be
 /// in an internally consistent state at all times.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Matrix<T: FieldElement<T>> {
+pub struct Matrix<T: Field<T>> {
     elements: Vec<Vec<T>>,
     width: usize,
     height: usize,
@@ -55,7 +55,7 @@ pub struct Matrix<T: FieldElement<T>> {
 }
 
 /// Default implementation of functions and methods for arbitrary fields.
-impl<T: FieldElement<T>> Matrix<T> {
+impl<T: Field<T>> Matrix<T> {
     /// Default constructor. All matrix initialization is supposed to go through this call to
     /// ensure internal consistency with dimension values.
     ///
@@ -473,7 +473,7 @@ impl<T: FieldElement<T>> Matrix<T> {
     }
 }
 
-impl<T: FieldElement<T> + Neg<Output = T>> Matrix<T> {
+impl<T: Field<T> + Neg<Output = T>> Matrix<T> {
     /// Checks whether the matrix $A$ is skew-symmetric, that is, whether it holds that $A^T = -A$.
     pub fn is_skew_symmetric(&self) -> bool {
         let transpose = self.transpose();
@@ -490,12 +490,12 @@ impl<T: FieldElement<T> + Neg<Output = T>> Matrix<T> {
 }
 
 /// Defines an iterator for [`Matrix`](Matrix) structs
-pub struct MatrixIterator<T: FieldElement<T>> {
+pub struct MatrixIterator<T: Field<T>> {
     matrix: Matrix<T>,
     row: usize,
 }
 
-impl<T: FieldElement<T>> IntoIterator for Matrix<T> {
+impl<T: Field<T>> IntoIterator for Matrix<T> {
     type Item = Vec<T>;
     type IntoIter = MatrixIterator<T>;
     fn into_iter(self) -> Self::IntoIter {
@@ -506,7 +506,7 @@ impl<T: FieldElement<T>> IntoIterator for Matrix<T> {
     }
 }
 
-impl<T: FieldElement<T>> Iterator for MatrixIterator<T> {
+impl<T: Field<T>> Iterator for MatrixIterator<T> {
     type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -520,7 +520,7 @@ impl<T: FieldElement<T>> Iterator for MatrixIterator<T> {
 }
 
 /// Special implementation for complex numbers.
-impl<T: FieldElement<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
+impl<T: Field<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
     /// Computes the hermitian transpose of a matrix $A$, that is, computes $A^H$.
     pub fn hermitian(&self) -> Matrix<Complex<T>> {
         let mut transpose = self.transpose();
@@ -548,7 +548,7 @@ impl<T: FieldElement<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
     }
 }
 
-impl<T: FieldElement<T>> Index<usize> for Matrix<T> {
+impl<T: Field<T>> Index<usize> for Matrix<T> {
     type Output = Vec<T>;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -556,7 +556,7 @@ impl<T: FieldElement<T>> Index<usize> for Matrix<T> {
     }
 }
 
-impl<T: FieldElement<T>> Add for Matrix<T> {
+impl<T: Field<T>> Add for Matrix<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -572,7 +572,7 @@ impl<T: FieldElement<T>> Add for Matrix<T> {
     }
 }
 
-impl<T: FieldElement<T>> Sub for Matrix<T> {
+impl<T: Field<T>> Sub for Matrix<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -588,7 +588,7 @@ impl<T: FieldElement<T>> Sub for Matrix<T> {
     }
 }
 
-impl<T: FieldElement<T> + Neg<Output = T>> Neg for Matrix<T> {
+impl<T: Field<T> + Neg<Output = T>> Neg for Matrix<T> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -603,7 +603,7 @@ impl<T: FieldElement<T> + Neg<Output = T>> Neg for Matrix<T> {
     }
 }
 
-impl<T: FieldElement<T>> Mul for Matrix<T> {
+impl<T: Field<T>> Mul for Matrix<T> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
