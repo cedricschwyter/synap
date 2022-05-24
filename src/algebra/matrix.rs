@@ -494,8 +494,8 @@ impl<T: Field<T>> Matrix<T> {
     /// (without performance overhead).
     ///
     /// ## Caution:
-    /// This method can incur unexpected comparatively expensive computations if its the first call
-    /// on the matrix and therefore the results have not already been computed and cached.
+    /// This method can incur unexpected comparatively expensive computations if it's the first call
+    /// of the method on the matrix and hence the results have not already been computed and cached.
     ///
     // TODO: Add logic to deduce rank and potentially determinant
     pub fn reduce(mut self) -> Matrix<T> {
