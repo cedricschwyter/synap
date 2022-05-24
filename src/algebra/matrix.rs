@@ -12,7 +12,11 @@ use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Rem, Sub};
 /// matrix implementation is quite literally useless.
 /// Note that this trait essentially defines the axioms of a field. Therefore matrices can be
 /// constructed over an arbitrary field and are not restricted to the built-in numeric/complex
-/// types, and it is guaranteed that all the algorithms work.
+/// types, and it is guaranteed that all the algorithms work. Except for the additive inverse
+/// operation (trait [`Neg`](std::ops::Neg)) all field axioms are enforced by the compiler. We deliberately do not
+/// require the [`Neg`](std::ops::Neg) trait to be implemented, as this would restrict the type `T` to only signed
+/// types, which may not be required in all situations. In functions/methods where the additive
+/// inverse operation is required it is bounded separately.
 pub trait FieldElement<T>:
     PartialEq
     + Eq
@@ -32,7 +36,7 @@ pub trait FieldElement<T>:
 impl<T: Num + Eq + Debug + Copy> FieldElement<T> for T {}
 
 /// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
-/// perform expensive computations only once and cache the result. The struct is guaranteed to be
+/// perform expensive computations only once and caching the results. The struct is guaranteed to be
 /// in an internally consistent state at all times.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Matrix<T: FieldElement<T>> {
@@ -41,9 +45,10 @@ pub struct Matrix<T: FieldElement<T>> {
     height: usize,
     rank: Option<usize>,
     det: Option<T>,
-    row_echelon_form: Option<Vec<Vec<T>>>,
-    lu_decomposition: Option<Vec<Vec<T>>>,
-    qr_decomposition: Option<Vec<Vec<T>>>,
+    inverse: Option<Box<Matrix<T>>>,
+    row_echelon_form: Option<Box<Matrix<T>>>,
+    lu_decomposition: Option<(Box<Matrix<T>>, Box<Matrix<T>>)>,
+    qr_decomposition: Option<(Box<Matrix<T>>, Box<Matrix<T>>)>,
     is_orthogonal: Option<bool>,
     is_normal: Option<bool>,
     is_orthonormal: Option<bool>,
@@ -78,6 +83,7 @@ impl<T: FieldElement<T>> Matrix<T> {
             height,
             rank: None,
             det: None,
+            inverse: None,
             row_echelon_form: None,
             lu_decomposition: None,
             qr_decomposition: None,
@@ -199,6 +205,25 @@ impl<T: FieldElement<T>> Matrix<T> {
             }
         }
         Matrix::<T>::new(elements)
+    }
+
+    /// Computes the inverse of the matrix $A$, that is, returns $A^{-1}$ if it exists. Panics
+    /// otherwise.
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and $\det A$, $\text{rank} A$ and $A^{-1}$ have not
+    /// already been computed and cached.
+    pub fn inverse(mut self) -> Matrix<T> {
+        if let Some(inverse) = self.inverse {
+            return *inverse;
+        }
+        self.assert_regular();
+        let inverse = inverse_naive(&self);
+        self.inverse = Some(Box::new(inverse));
+        if let Some(inverse) = self.inverse {
+            return *inverse;
+        }
+        panic!("inconsistent internal state of matrix");
     }
 
     /// Checks whether two matrices of the same type are the same size. This is exactly then the

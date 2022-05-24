@@ -10,7 +10,7 @@
 //! Unless you wish to explicitely execute a specific algorithm, you are most likely looking in the
 //! wrong place right now.
 
-use num::{pow, Float};
+use num::{abs, pow, Float, Signed};
 
 use crate::algebra::matrix::*;
 
@@ -49,10 +49,13 @@ pub fn euclidean_norm_naive<T: FieldElement<T> + Float>(matrix: &Matrix<T>) -> M
 /// (\lvert x_1 \rvert ^ p + ... + \lvert x_n \rvert ^ p)^\frac{1}{p}$.
 ///
 /// * `matrix` - corresponds to the $x$ above, expected to be of size $\dim x \times 1$
-pub fn p_norm_naive<T: FieldElement<T> + Float>(matrix: &Matrix<T>, p: usize) -> Matrix<T> {
+pub fn p_norm_naive<T: FieldElement<T> + Float + Signed>(
+    matrix: &Matrix<T>,
+    p: usize,
+) -> Matrix<T> {
     let mut value: T = num::zero();
     for i in 0..matrix.height() {
-        value = value + pow(matrix[i][0], p);
+        value = value + pow(abs(matrix[i][0]), p);
     }
     unimplemented!()
 }
@@ -83,23 +86,27 @@ pub fn mat_mul_naive<T: FieldElement<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Ma
 }
 
 pub fn gauss_elim_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
-    unreachable!();
+    unimplemented!();
 }
 
 pub fn lu_decomp_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
-    unreachable!();
+    unimplemented!();
 }
 
 pub fn qr_decomp_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
-    unreachable!();
+    unimplemented!();
 }
 
 pub fn det_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> T {
-    unreachable!();
+    unimplemented!();
 }
 
 pub fn rank_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> usize {
-    unreachable!();
+    unimplemented!();
+}
+
+pub fn inverse_naive<T: FieldElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+    unimplemented!()
 }
 
 pub fn gram_schmidt<T: FieldElement<T>>(matrix: &Matrix<T>) -> Matrix<T> {
