@@ -6,7 +6,7 @@
 use super::algorithms::*;
 use num::{Complex, Num, One, Zero};
 use std::fmt::Debug;
-use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Rem, Sub};
+use std::ops::{Add, Div, Index, Mul, Neg, Rem, Sub};
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
@@ -526,7 +526,7 @@ impl<T: FieldElement<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
         let mut transpose = self.transpose();
         for row in 0..transpose.height() {
             for col in 0..transpose.width() {
-                transpose[row][col] = Complex {
+                transpose.elements[row][col] = Complex {
                     re: transpose[row][col].re,
                     im: -transpose[row][col].im,
                 };
@@ -553,12 +553,6 @@ impl<T: FieldElement<T>> Index<usize> for Matrix<T> {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.elements[index]
-    }
-}
-
-impl<T: FieldElement<T>> IndexMut<usize> for Matrix<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.elements[index]
     }
 }
 
@@ -698,29 +692,6 @@ mod tests {
     fn matrix_indexing_out_of_bounds_col() {
         let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
         let _ = matrix[1][5];
-    }
-
-    #[test]
-    fn matrix_mut_indexing() {
-        let mut matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
-        assert_eq!(
-            matrix,
-            Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]])
-        );
-        matrix[0][0] = 9;
-        matrix[0][1] = 8;
-        matrix[0][2] = 7;
-        matrix[0][3] = 6;
-        matrix[0][4] = 5;
-        matrix[1][0] = 4;
-        matrix[1][1] = 3;
-        matrix[1][2] = 2;
-        matrix[1][3] = 1;
-        matrix[1][4] = 0;
-        assert_eq!(
-            matrix,
-            Matrix::<u32>::new(vec![vec![9, 8, 7, 6, 5], vec![4, 3, 2, 1, 0]])
-        );
     }
 
     #[test]
