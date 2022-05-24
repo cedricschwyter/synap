@@ -103,6 +103,11 @@ impl<T: Field<T>> Matrix<T> {
         self.height
     }
 
+    /// Getter for the raw elements of the matrix
+    pub fn elements(&self) -> Vec<Vec<T>> {
+        self.elements.clone()
+    }
+
     /// Creates an identity matrix of square dimensions as given by the parameter.
     /// Returns
     /// $$
@@ -222,7 +227,7 @@ impl<T: Field<T>> Matrix<T> {
         if let Some(inverse) = self.inverse {
             return *inverse;
         }
-        panic!("inconsistent internal state of matrix");
+        panic!("inconsistent internal state of matrix - panic in self.inverse");
     }
 
     /// Checks whether two matrices of the same type are the same size. This is exactly then the
@@ -470,6 +475,39 @@ impl<T: Field<T>> Matrix<T> {
         if !self.is_symmetric() {
             panic!("expected matrix to be symmetic, but is not");
         }
+    }
+
+    /// Returns the trace $\text{tr} A$ of the square matrix $A$ of dimension $n \times n$,
+    /// where $\text{tr} A = \sum_{i = 1}^n a_{ii}$.
+    /// Panics, if the matrix is not square.
+    pub fn trace(&self) -> T {
+        self.assert_square();
+        let mut value: T = num::zero();
+        for i in 0..self.width() {
+            value = value + self[i][i];
+        }
+        value
+    }
+
+    /// Returns a new row-reduced matrix that represents the matrix $A$ in row-echelon form using gaussian elimination.
+    /// As a side-effect in some cases $\det A$ and $\text{rank} A$ may be computed and cached
+    /// (without performance overhead).
+    ///
+    /// ## Caution:
+    /// This method can incur unexpected comparatively expensive computations if its the first call
+    /// on the matrix and therefore the results have not already been computed and cached.
+    ///
+    // TODO: Add logic to deduce rank and potentially determinant
+    pub fn reduce(mut self) -> Matrix<T> {
+        if let Some(reduced) = self.row_echelon_form {
+            return *reduced;
+        }
+        let row_echelon_form = gauss_elim_naive(&self);
+        self.row_echelon_form = Some(Box::new(row_echelon_form));
+        if let Some(row_echelon_form) = self.row_echelon_form {
+            return *row_echelon_form;
+        }
+        panic!("inconsistent internal state of matrix - panic in self.reduce");
     }
 }
 
@@ -903,6 +941,28 @@ mod tests {
                     Complex::new(2, -4)
                 ]
             ])
+        );
+    }
+
+    #[test]
+    fn trace_matrix_square() {
+        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4]; 5]);
+        assert_eq!(matrix.trace(), 10);
+    }
+
+    #[test]
+    #[should_panic]
+    fn trace_matrix_rect() {
+        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4]; 3]);
+        matrix.trace();
+    }
+
+    #[test]
+    fn row_echelon_form() {
+        let matrix = Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
+        assert_eq!(
+            matrix.reduce(),
+            Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0],])
         );
     }
 }

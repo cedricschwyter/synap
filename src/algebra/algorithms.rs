@@ -63,7 +63,6 @@ pub fn p_norm_naive<T: Field<T> + Float + Signed>(matrix: &Matrix<T>, p: usize) 
 pub fn nth_root(value: f64, n: f64) -> f64 {
     let p = 1e-9_f64;
     let mut x0 = value / n;
-
     loop {
         let x1 = ((n - 1.0) * x0 + value / f64::powf(x0, n - 1.0)) / n;
         if (x1 - x0).abs() < (x0 * p).abs() {
@@ -98,8 +97,24 @@ pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T>
     Matrix::<T>::new(elements)
 }
 
+/// A classic, naive implementation of the gaussian row reduction algorithm, with runtime
+/// complexity $O(n^3)$. Returns a new matrix that corresponds to the row-reduced variant of the
+/// input matrix. Transforms the input matrix into row-echelon form.
+///
+/// * `matrix` - the matrix to reduce
 pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
-    unimplemented!();
+    let mut elements = matrix.elements();
+    for i in 1..matrix.height() {
+        for j in 0..i {
+            if elements[i][j] != num::zero() {
+                let r: T = elements[i][j] / elements[j][j];
+                for k in 0..matrix.width() {
+                    elements[i][k] = elements[i][k] / r - elements[j][k];
+                }
+            }
+        }
+    }
+    Matrix::<T>::new(elements)
 }
 
 pub fn lu_decomp_naive<T: Field<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
