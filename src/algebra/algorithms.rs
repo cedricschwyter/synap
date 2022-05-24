@@ -79,7 +79,7 @@ pub fn nth_root(value: f64, n: f64) -> f64 {
     }
 }
 
-/// A naive implementation of the matrix multiplication algorithm, a classic $O(n^3)$
+/// A naive implementation of the matrix multiplication algorithm, a classic $O(m^3)$
 /// implementation.
 /// It multiplies together matrices $A, B$ of sizes $n \times m$ and $m \times p$ respectively and
 /// returns a matrix of size $n \times p$.
