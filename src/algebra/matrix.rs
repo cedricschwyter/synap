@@ -19,7 +19,6 @@ use std::ops::{Add, Div, Index, IndexMut, Mul, Neg, Rem, Sub};
 /// inverse operation is required it is bounded separately.
 pub trait FieldElement<T>:
     PartialEq
-    + Eq
     + Debug
     + Copy
     + Add<T, Output = T>
@@ -33,7 +32,7 @@ pub trait FieldElement<T>:
 }
 
 /// Blanket-implementation for all built-in numeric types.
-impl<T: Num + Eq + Debug + Copy> FieldElement<T> for T {}
+impl<T: Num + Debug + Copy> FieldElement<T> for T {}
 
 /// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
 /// perform expensive computations only once and caching the results. The struct is guaranteed to be

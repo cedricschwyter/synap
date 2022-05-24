@@ -52,12 +52,31 @@ pub fn euclidean_norm_naive<T: FieldElement<T> + Float>(matrix: &Matrix<T>) -> M
 pub fn p_norm_naive<T: FieldElement<T> + Float + Signed>(
     matrix: &Matrix<T>,
     p: usize,
-) -> Matrix<T> {
+) -> Matrix<f64> {
     let mut value: T = num::zero();
     for i in 0..matrix.height() {
         value = value + pow(abs(matrix[i][0]), p);
     }
-    unimplemented!()
+    Matrix::<f64>::scalar(nth_root(value.to_f64().unwrap(), p as f64))
+}
+
+/// [https://rosettacode.org/wiki/Nth_root#Rust](https://rosettacode.org/wiki/Nth_root#Rust)
+///
+/// Solves for $x$ in $x^n = v$.
+///
+/// * `value` - corresponds to $v$ above
+/// * `n` - corresponds to $n$ above
+pub fn nth_root(value: f64, n: f64) -> f64 {
+    let p = 1e-9_f64;
+    let mut x0 = value / n;
+
+    loop {
+        let x1 = ((n - 1.0) * x0 + value / f64::powf(x0, n - 1.0)) / n;
+        if (x1 - x0).abs() < (x0 * p).abs() {
+            return x1;
+        };
+        x0 = x1
+    }
 }
 
 /// A naive implementation of the matrix multiplication algorithm, a classic $O(n^3)$
