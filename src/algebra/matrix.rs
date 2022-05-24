@@ -13,10 +13,10 @@ use std::ops::{Add, Div, Index, Mul, Neg, Rem, Sub};
 /// Note that this trait enforces the axioms of a field. Therefore matrices can be
 /// constructed over an arbitrary field and are not restricted to the built-in numeric/complex
 /// types, and it is guaranteed that all the algorithms work. Except for the additive inverse
-/// operation (trait [`Neg`](std::ops::Neg)) all field axioms are enforced by the compiler. We deliberately do not
-/// require the [`Neg`](std::ops::Neg) trait to be implemented, as this would restrict the type `T` to only signed
-/// types, which may not be required in all situations. In functions/methods where the additive
-/// inverse operation is required it is bounded separately.
+/// operation (trait [`Neg`](std::ops::Neg)) all field axioms are enforced by the compiler here already.
+/// We deliberately do not require the [`Neg`](std::ops::Neg) trait to be implemented here, as this would
+/// restrict the type `T` to only signed types, which may not be required in all situations.
+/// In functions/methods where the additive inverse operation is required it is bounded separately.
 pub trait Field<T>:
     PartialEq
     + Debug
@@ -60,7 +60,7 @@ impl<T: Field<T>> Matrix<T> {
     /// ensure internal consistency with dimension values.
     ///
     /// * `elements` - a two dimensional vector of field elements representing the rows of a
-    /// matrix, rows are expected to be of the same length
+    /// matrix, rows are expected to be of the same length, panics otherwise
     pub fn new(elements: Vec<Vec<T>>) -> Matrix<T> {
         if elements.is_empty() {
             panic!("attempting to create matrix with no elements");
