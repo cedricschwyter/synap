@@ -471,10 +471,13 @@ impl<T: FieldElement<T>> Matrix<T> {
             panic!("expected matrix to be symmetic, but is not");
         }
     }
+}
 
+impl<T: FieldElement<T> + Neg<Output = T>> Matrix<T> {
     /// Checks whether the matrix $A$ is skew-symmetric, that is, whether it holds that $A^T = -A$.
     pub fn is_skew_symmetric(&self) -> bool {
-        unimplemented!();
+        let transpose = self.transpose();
+        -transpose == *self
     }
 
     /// Asserts that the matrix $A$ is skew-symmetric, that is, that it holds that $A^T = -A$.
@@ -795,6 +798,88 @@ mod tests {
             matrix * identity,
             Matrix::<i32>::new(vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 10])
         );
+    }
+
+    #[test]
+    fn matrix_symmetric() {
+        let matrix = Matrix::<u32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![1, 0, 1, 2, 3],
+            vec![2, 1, 0, 1, 2],
+            vec![3, 2, 1, 0, 1],
+            vec![4, 3, 2, 1, 0],
+        ]);
+        assert!(matrix.is_symmetric());
+    }
+
+    #[test]
+    fn matrix_not_symmetric_square() {
+        let matrix = Matrix::<u32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![1, 0, 1, 2, 3],
+            vec![2, 1, 0, 1, 2],
+            vec![3, 2, 1, 0, 1],
+            vec![5, 3, 2, 1, 0],
+        ]);
+        assert!(!matrix.is_symmetric());
+    }
+
+    #[test]
+    fn matrix_not_symmetric_rect() {
+        let matrix = Matrix::<u32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![1, 0, 1, 2, 3],
+            vec![2, 1, 0, 1, 2],
+            vec![3, 2, 1, 0, 1],
+        ]);
+        assert!(!matrix.is_symmetric());
+    }
+
+    #[test]
+    fn matrix_skew_symmetric() {
+        let matrix = Matrix::<i32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![-1, 0, 1, 2, 3],
+            vec![-2, -1, 0, 1, 2],
+            vec![-3, -2, -1, 0, 1],
+            vec![-4, -3, -2, -1, 0],
+        ]);
+        assert!(matrix.is_skew_symmetric());
+    }
+
+    #[test]
+    fn matrix_not_skew_symmetric_square() {
+        let matrix = Matrix::<i32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![-1, 0, 1, 2, 3],
+            vec![-2, -1, 0, 1, 2],
+            vec![-3, -2, -1, 0, 1],
+            vec![-5, -3, -2, -1, 0],
+        ]);
+        assert!(!matrix.is_skew_symmetric());
+    }
+
+    #[test]
+    fn matrix_not_skew_symmetric_square_neg() {
+        let matrix = Matrix::<i32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![-1, 0, 1, 2, 3],
+            vec![-2, -1, 0, 1, 2],
+            vec![-3, -2, -1, 0, 1],
+            vec![4, -3, -2, -1, 0],
+        ]);
+        assert!(!matrix.is_skew_symmetric());
+    }
+
+    #[test]
+    fn matrix_not_skew_symmetric_rect() {
+        let matrix = Matrix::<i32>::new(vec![
+            vec![0, 1, 2, 3, 4],
+            vec![-1, 0, 1, 2, 3],
+            vec![-2, -1, 0, 1, 2],
+            vec![-3, -2, -1, 0, 1],
+        ]);
+        assert!(!matrix.is_skew_symmetric());
     }
 
     #[test]
