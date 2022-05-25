@@ -6,7 +6,7 @@
 use super::algorithms::*;
 use num::{Complex, Num, One, Zero};
 use std::fmt::Debug;
-use std::ops::{Add, Div, Index, Mul, Neg, Rem, Sub};
+use std::ops::{Add, Div, Index, Mul, Neg, Sub};
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
@@ -25,7 +25,6 @@ pub trait Field<T>:
     + Sub<T, Output = T>
     + Mul<T, Output = T>
     + Div<T, Output = T>
-    + Rem<T, Output = T>
     + Zero
     + One
 {
