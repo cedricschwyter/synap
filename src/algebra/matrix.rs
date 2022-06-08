@@ -5,8 +5,10 @@
 
 use super::algorithms::*;
 use num::{Complex, Num, One, Zero};
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::ops::{Add, Div, Index, Mul, Neg, Sub};
+use std::rc::{Rc, Weak};
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
@@ -34,23 +36,44 @@ pub trait Field<T>:
 impl<T: Num + Debug + Copy> Field<T> for T {}
 
 /// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
-/// perform expensive computations only once and caching the results. The struct is guaranteed to be
+/// perform expensive computations only once and then memoizing/caching the results. The struct is guaranteed to be
 /// in an internally consistent state at all times.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Matrix<T: Field<T>> {
     elements: Vec<Vec<T>>,
     width: usize,
     height: usize,
     rank: Option<usize>,
     det: Option<T>,
-    inverse: Option<Box<Matrix<T>>>,
-    row_echelon_form: Option<Box<Matrix<T>>>,
-    lu_decomposition: Option<(Box<Matrix<T>>, Box<Matrix<T>>)>,
-    qr_decomposition: Option<(Box<Matrix<T>>, Box<Matrix<T>>)>,
+    inverse: Option<WeakMatrixLink<T>>,
+    row_echelon_form: Option<MatrixLink<T>>,
+    lu_decomposition: Option<(MatrixLink<T>, MatrixLink<T>)>,
+    qr_decomposition: Option<(MatrixLink<T>, MatrixLink<T>)>,
     is_orthogonal: Option<bool>,
     is_normal: Option<bool>,
     is_orthonormal: Option<bool>,
     is_unitary: Option<bool>,
+}
+
+/// Wraps a `Matrix<T>` in a `RefCell` - Provides interior mutabilty
+type MatrixRef<T> = RefCell<Matrix<T>>;
+
+/// Wraps a `MatrixRef<T>` in a `Rc` - Represents an owning link
+type MatrixLink<T> = Rc<MatrixRef<T>>;
+
+/// Wraps a `MatrixRef<T>` in a `Weak` - Represents a non-owning link
+type WeakMatrixLink<T> = Weak<MatrixRef<T>>;
+
+impl<T: Field<T>> PartialEq for Matrix<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.elements == other.elements
+    }
+}
+
+impl<T: Field<T>> PartialEq<MatrixLink<T>> for Matrix<T> {
+    fn eq(&self, other: &MatrixLink<T>) -> bool {
+        self.elements == other.borrow().elements
+    }
 }
 
 /// Default implementation of functions and methods for arbitrary fields.
@@ -216,17 +239,21 @@ impl<T: Field<T>> Matrix<T> {
     /// ## Caution:
     /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and $\det A$, $\text{rank} A$ and $A^{-1}$ have not
     /// already been computed and cached.
-    pub fn inverse(mut self) -> Matrix<T> {
+    pub fn inverse(mut self) -> MatrixLink<T> {
         if let Some(inverse) = self.inverse {
-            return *inverse;
+            return match inverse.upgrade() {
+                Some(val) => Rc::clone(&val),
+                None => {
+                    panic!("could not acquire ownership of self.inverse - panic in self.inverse")
+                }
+            };
         }
         self.assert_regular();
         let inverse = inverse_naive(&self);
-        self.inverse = Some(Box::new(inverse));
-        if let Some(inverse) = self.inverse {
-            return *inverse;
-        }
-        panic!("inconsistent internal state of matrix - panic in self.inverse");
+        let inv = Rc::new(RefCell::new(inverse));
+        self.inverse = Some(Rc::downgrade(&inv));
+        inv.borrow_mut().inverse = Some(Rc::downgrade(&Rc::new(RefCell::new(self))));
+        inv
     }
 
     /// Checks whether two matrices of the same type are the same size. This is exactly then the
@@ -497,16 +524,15 @@ impl<T: Field<T>> Matrix<T> {
     /// of the method on the matrix and hence the results have not already been computed and cached.
     ///
     // TODO: Add logic to deduce rank and potentially determinant
-    pub fn reduce(mut self) -> Matrix<T> {
+    pub fn reduce(mut self) -> MatrixLink<T> {
         if let Some(reduced) = self.row_echelon_form {
-            return *reduced;
+            return Rc::clone(&reduced);
         }
         let row_echelon_form = gauss_elim_naive(&self);
-        self.row_echelon_form = Some(Box::new(row_echelon_form));
-        if let Some(row_echelon_form) = self.row_echelon_form {
-            return *row_echelon_form;
-        }
-        panic!("inconsistent internal state of matrix - panic in self.reduce");
+        let re_form = Rc::new(RefCell::new(row_echelon_form));
+        let re_form_clone = Rc::clone(&re_form);
+        self.row_echelon_form = Some(re_form);
+        re_form_clone
     }
 }
 
@@ -959,9 +985,14 @@ mod tests {
     #[test]
     fn row_echelon_form() {
         let matrix = Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
+        // TODO: Figure out why this wont work:
+        // assert_eq!(
+        //    matrix.reduce(),
+        //    Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0],])
+        // );
         assert_eq!(
-            matrix.reduce(),
-            Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0],])
+            matrix.reduce().borrow().elements,
+            Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0],]).elements
         );
     }
 }
