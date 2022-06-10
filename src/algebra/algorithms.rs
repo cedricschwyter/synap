@@ -143,7 +143,27 @@ pub fn gram_schmidt<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
+
     use super::*;
+    use test::Bencher;
+
+    #[test]
+    fn mat_mul() {
+        let lhs = Matrix::<u32>::identity(5);
+        let rhs = Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]);
+        assert_eq!(lhs * rhs, Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]));
+    }
+
+    #[bench]
+    fn bench_mat_mul_10_by_10(b: &mut Bencher) {
+        b.iter(|| {
+            mat_mul_naive(
+                &Matrix::new(vec![vec![1; 10]; 10]),
+                &Matrix::new(vec![vec![2; 10]; 10]),
+            )
+        });
+    }
 
     #[test]
     #[ignore]
