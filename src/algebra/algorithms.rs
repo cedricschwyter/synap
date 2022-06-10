@@ -156,11 +156,12 @@ mod tests {
     }
 
     #[bench]
-    fn bench_mat_mul_10_by_10(b: &mut Bencher) {
+    fn bench_mat_mul(b: &mut Bencher) {
+        let size = 10;
         b.iter(|| {
             mat_mul_naive(
-                &Matrix::new(vec![vec![1; 10]; 10]),
-                &Matrix::new(vec![vec![2; 10]; 10]),
+                &Matrix::new(vec![vec![1; size]; size]),
+                &Matrix::new(vec![vec![2; size]; size]),
             )
         });
     }
