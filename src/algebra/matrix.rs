@@ -76,6 +76,12 @@ impl<T: Field<T>> PartialEq<MatrixLink<T>> for Matrix<T> {
     }
 }
 
+impl<T: Field<T>> PartialEq<Matrix<T>> for MatrixLink<T> {
+    fn eq(&self, other: &Matrix<T>) -> bool {
+        self.borrow().elements == other.elements
+    }
+}
+
 /// Default implementation of functions and methods for arbitrary fields.
 impl<T: Field<T>> Matrix<T> {
     /// Default constructor. All matrix initialization is supposed to go through this call to
@@ -985,14 +991,9 @@ mod tests {
     #[test]
     fn row_echelon_form() {
         let matrix = Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
-        // TODO: Figure out why this wont work:
-        // assert_eq!(
-        //    matrix.reduce(),
-        //    Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0],])
-        // );
         assert_eq!(
-            matrix.reduce().borrow().elements,
-            Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0],]).elements
+            matrix.reduce(),
+            Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0]])
         );
     }
 }
