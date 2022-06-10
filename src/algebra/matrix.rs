@@ -159,7 +159,7 @@ impl<T: Field<T>> Matrix<T> {
                 }
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 
     /// Creates an identity matrix of rectangular dimensions as given by the parameters.
@@ -187,21 +187,21 @@ impl<T: Field<T>> Matrix<T> {
                 }
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 
     /// Convenience constructor for a vector $x$, that is, a $\dim x \times 1$ matrix.
     ///
     /// * `elements` - a vector of length $\dim x$ of elements corresponding to the elements of $x$
     pub fn vector(elements: Vec<T>) -> Matrix<T> {
-        Matrix::<T>::new(vec![elements]).transpose()
+        Matrix::new(vec![elements]).transpose()
     }
 
     /// Convenience constructor for a scalar $\alpha$, that is, a $1 \times 1$ matrix.
     ///
     /// * `element` - a single element representing the scalar value of $\alpha$
     pub fn scalar(element: T) -> Matrix<T> {
-        Matrix::<T>::vector(vec![element])
+        Matrix::vector(vec![element])
     }
 
     /// Unwraps the $1 \times 1$ matrix into the underlying field element $\alpha$.
@@ -214,9 +214,9 @@ impl<T: Field<T>> Matrix<T> {
     /// Computes the transpose of the matrix, that is, if the matrix $A$ is of dimension $n \times
     /// m$ the method returns $A^T$ of size $m \times n$.
     pub fn transpose(&self) -> Matrix<T> {
-        let mut elements = Vec::<Vec<T>>::new();
+        let mut elements = Vec::new();
         for col in 0..self.width {
-            elements.push(Vec::<T>::new());
+            elements.push(Vec::new());
             for row in 0..self.height {
                 elements[col].push(self[row][col]);
             }
@@ -229,9 +229,9 @@ impl<T: Field<T>> Matrix<T> {
     /// * `lhs` - corresponds to $\alpha$ above, expected to be of size $1 \times 1$
     pub fn scale(&self, lhs: Matrix<T>) -> Matrix<T> {
         lhs.assert_scalar();
-        let mut elements = Vec::<Vec<T>>::new();
+        let mut elements = Vec::new();
         for row in 0..self.height {
-            elements.push(Vec::<T>::new());
+            elements.push(Vec::new());
             for col in 0..self.width {
                 elements[row].push(lhs.to_scalar() * self[row][col]);
             }
@@ -630,14 +630,14 @@ impl<T: Field<T>> Add for Matrix<T> {
 
     fn add(self, rhs: Self) -> Self::Output {
         self.assert_same_size(&rhs);
-        let mut elements = Vec::<Vec<T>>::new();
+        let mut elements = Vec::new();
         for row in 0..self.height {
-            elements.push(Vec::<T>::new());
+            elements.push(Vec::new());
             for col in 0..self.width {
                 elements[row].push(self[row][col] + rhs[row][col]);
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 }
 
@@ -646,14 +646,14 @@ impl<T: Field<T>> Sub for Matrix<T> {
 
     fn sub(self, rhs: Self) -> Self::Output {
         self.assert_same_size(&rhs);
-        let mut elements = Vec::<Vec<T>>::new();
+        let mut elements = Vec::new();
         for row in 0..self.height {
-            elements.push(Vec::<T>::new());
+            elements.push(Vec::new());
             for col in 0..self.width {
                 elements[row].push(self[row][col] - rhs[row][col]);
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 }
 
@@ -661,14 +661,14 @@ impl<T: Field<T> + Neg<Output = T>> Neg for Matrix<T> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
-        let mut elements = Vec::<Vec<T>>::new();
+        let mut elements = Vec::new();
         for row in 0..self.height {
-            elements.push(Vec::<T>::new());
+            elements.push(Vec::new());
             for col in 0..self.width {
                 elements[row].push(-self[row][col]);
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 }
 
@@ -690,53 +690,53 @@ mod tests {
 
     #[test]
     fn matrix_vector_multiplication() {
-        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let rhs = Matrix::<i32>::vector(vec![9, 10, 11]);
-        assert_eq!(lhs * rhs, Matrix::<i32>::vector(vec![32, 122, 212]));
+        let lhs = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::vector(vec![9, 10, 11]);
+        assert_eq!(lhs * rhs, Matrix::vector(vec![32, 122, 212]));
     }
 
     #[test]
     #[should_panic]
     fn matrix_vector_multiplication_incompatible_size() {
-        let lhs = Matrix::<i32>::new(vec![vec![0, 1], vec![2, 3], vec![4, 5]]);
-        let rhs = Matrix::<i32>::vector(vec![6, 7, 8]);
+        let lhs = Matrix::new(vec![vec![0, 1], vec![2, 3], vec![4, 5]]);
+        let rhs = Matrix::vector(vec![6, 7, 8]);
         let _ = lhs * rhs;
     }
 
     #[test]
     fn matrix_multiplication() {
-        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let rhs = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        let lhs = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
         assert_eq!(
             lhs * rhs,
-            Matrix::<i32>::new(vec![vec![9, 6, 3], vec![54, 42, 30], vec![99, 78, 57]])
+            Matrix::new(vec![vec![9, 6, 3], vec![54, 42, 30], vec![99, 78, 57]])
         );
     }
 
     #[test]
     #[should_panic]
     fn matrix_multiplication_incompatible_size() {
-        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let rhs = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3]]);
+        let lhs = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::new(vec![vec![8, 7, 6], vec![5, 4, 3]]);
         let _ = lhs * rhs;
     }
 
     #[test]
     fn scalar_product() {
-        let lhs = Matrix::<u32>::vector(vec![0, 1, 2]).transpose();
-        let rhs = Matrix::<u32>::vector(vec![3, 4, 5]);
+        let lhs = Matrix::vector(vec![0, 1, 2]).transpose();
+        let rhs = Matrix::vector(vec![3, 4, 5]);
         assert_eq!((lhs * rhs).to_scalar(), 14);
     }
 
     #[test]
     #[should_panic]
     fn matrix_creation_inconsistent_rows() {
-        let _ = Matrix::<u32>::new(vec![vec![0, 1], vec![2, 3, 4, 5, 6]]);
+        let _ = Matrix::new(vec![vec![0, 1], vec![2, 3, 4, 5, 6]]);
     }
 
     #[test]
     fn matrix_indexing() {
-        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
+        let matrix = Matrix::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
         assert_eq!(matrix[0][0], 0);
         assert_eq!(matrix[0][1], 1);
         assert_eq!(matrix[0][2], 2);
@@ -752,97 +752,94 @@ mod tests {
     #[test]
     #[should_panic]
     fn matrix_indexing_out_of_bounds_row() {
-        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
+        let matrix = Matrix::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
         let _ = matrix[2][0];
     }
 
     #[test]
     #[should_panic]
     fn matrix_indexing_out_of_bounds_col() {
-        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
+        let matrix = Matrix::new(vec![vec![0, 1, 2, 3, 4], vec![5, 6, 7, 8, 9]]);
         let _ = matrix[1][5];
     }
 
     #[test]
     fn matrix_negation() {
-        let matrix = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let matrix = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
         assert_eq!(
             -matrix,
-            Matrix::<i32>::new(vec![vec![0, -1, -2], vec![-3, -4, -5], vec![-6, -7, -8]])
+            Matrix::new(vec![vec![0, -1, -2], vec![-3, -4, -5], vec![-6, -7, -8]])
         );
     }
 
     #[test]
     fn matrix_addition() {
-        let lhs = Matrix::<u32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let rhs = Matrix::<u32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
-        assert_eq!(lhs + rhs, Matrix::<u32>::new(vec![vec![8, 8, 8]; 3]));
+        let lhs = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        assert_eq!(lhs + rhs, Matrix::new(vec![vec![8, 8, 8]; 3]));
     }
 
     #[test]
     fn matrix_addition_with_negation() {
-        let lhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
-        let rhs = Matrix::<i32>::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
+        let lhs = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let rhs = Matrix::new(vec![vec![8, 7, 6], vec![5, 4, 3], vec![2, 1, 0]]);
         assert_eq!(
             lhs + -rhs,
-            Matrix::<i32>::new(vec![vec![-8, -6, -4], vec![-2, 0, 2], vec![4, 6, 8]])
+            Matrix::new(vec![vec![-8, -6, -4], vec![-2, 0, 2], vec![4, 6, 8]])
         );
     }
 
     #[test]
     #[should_panic]
     fn matrix_addition_incorrect_size() {
-        let lhs = Matrix::<u32>::new(vec![vec![0, 1, 2]]);
-        let rhs = Matrix::<u32>::new(vec![vec![3, 4, 5], vec![6, 7, 8]]);
+        let lhs = Matrix::new(vec![vec![0, 1, 2]]);
+        let rhs = Matrix::new(vec![vec![3, 4, 5], vec![6, 7, 8]]);
         let _ = lhs + rhs;
     }
 
     #[test]
     fn scalar_matrix_multiplication() {
-        let lhs = Matrix::<i32>::scalar(5);
-        let rhs = Matrix::<i32>::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
+        let lhs = Matrix::scalar(5);
+        let rhs = Matrix::new(vec![vec![0, 1, 2], vec![3, 4, 5], vec![6, 7, 8]]);
         assert_eq!(
             rhs.scale(lhs),
-            Matrix::<i32>::new(vec![vec![0, 5, 10], vec![15, 20, 25], vec![30, 35, 40]])
+            Matrix::new(vec![vec![0, 5, 10], vec![15, 20, 25], vec![30, 35, 40]])
         );
     }
 
     #[test]
     fn scalar_vector_multiplication() {
-        let lhs = Matrix::<i32>::scalar(5);
-        let rhs = Matrix::<i32>::vector(vec![0, 1, 2, 3, 4]);
-        assert_eq!(
-            rhs.scale(lhs),
-            Matrix::<i32>::vector(vec![0, 5, 10, 15, 20])
-        );
+        let lhs = Matrix::scalar(5);
+        let rhs = Matrix::vector(vec![0, 1, 2, 3, 4]);
+        assert_eq!(rhs.scale(lhs), Matrix::vector(vec![0, 5, 10, 15, 20]));
     }
 
     #[test]
     fn multi_step_computation() {
-        let lhs = Matrix::<i32>::scalar(10);
-        let middle_lhs = Matrix::<i32>::identity(4);
-        let middle_rhs = Matrix::<i32>::vector(vec![1, 2, 3, 4]);
-        let rhs = Matrix::<i32>::vector(vec![5, 6, 7, 8]);
-        let identity = Matrix::<i32>::identity_rect(4, 4);
+        let lhs = Matrix::scalar(10);
+        let middle_lhs = Matrix::identity(4);
+        let middle_rhs = Matrix::vector(vec![1, 2, 3, 4]);
+        let rhs = Matrix::vector(vec![5, 6, 7, 8]);
+        let identity = Matrix::identity_rect(4, 4);
         assert_eq!(
             identity * (middle_lhs.scale(lhs) * -middle_rhs + rhs),
-            Matrix::<i32>::vector(vec![-5, -14, -23, -32])
+            Matrix::vector(vec![-5, -14, -23, -32])
         );
     }
 
     #[test]
     fn identity_square() {
-        let identity = Matrix::<i32>::identity(10);
-        let matrix = Matrix::<i32>::new(vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 10]);
+        let identity = Matrix::identity(10);
+        let matrix = Matrix::new(vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 10]);
         assert_eq!(
             matrix * identity,
-            Matrix::<i32>::new(vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 10])
+            Matrix::new(vec![vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 10])
         );
     }
 
     #[test]
     fn matrix_symmetric() {
-        let matrix = Matrix::<u32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![1, 0, 1, 2, 3],
             vec![2, 1, 0, 1, 2],
@@ -854,7 +851,7 @@ mod tests {
 
     #[test]
     fn matrix_not_symmetric_square() {
-        let matrix = Matrix::<u32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![1, 0, 1, 2, 3],
             vec![2, 1, 0, 1, 2],
@@ -866,7 +863,7 @@ mod tests {
 
     #[test]
     fn matrix_not_symmetric_rect() {
-        let matrix = Matrix::<u32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![1, 0, 1, 2, 3],
             vec![2, 1, 0, 1, 2],
@@ -877,7 +874,7 @@ mod tests {
 
     #[test]
     fn matrix_skew_symmetric() {
-        let matrix = Matrix::<i32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![-1, 0, 1, 2, 3],
             vec![-2, -1, 0, 1, 2],
@@ -889,7 +886,7 @@ mod tests {
 
     #[test]
     fn matrix_not_skew_symmetric_square() {
-        let matrix = Matrix::<i32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![-1, 0, 1, 2, 3],
             vec![-2, -1, 0, 1, 2],
@@ -901,7 +898,7 @@ mod tests {
 
     #[test]
     fn matrix_not_skew_symmetric_square_neg() {
-        let matrix = Matrix::<i32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![-1, 0, 1, 2, 3],
             vec![-2, -1, 0, 1, 2],
@@ -913,7 +910,7 @@ mod tests {
 
     #[test]
     fn matrix_not_skew_symmetric_rect() {
-        let matrix = Matrix::<i32>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![0, 1, 2, 3, 4],
             vec![-1, 0, 1, 2, 3],
             vec![-2, -1, 0, 1, 2],
@@ -924,7 +921,7 @@ mod tests {
 
     #[test]
     fn hermitian_transpose() {
-        let matrix = Matrix::<Complex<i32>>::new(vec![
+        let matrix = Matrix::new(vec![
             vec![
                 Complex::new(0, 0),
                 Complex::new(0, 1),
@@ -949,7 +946,7 @@ mod tests {
         ]);
         assert_eq!(
             matrix.hermitian(),
-            Matrix::<Complex<i32>>::new(vec![
+            Matrix::new(vec![
                 vec![Complex::new(0, 0), Complex::new(1, 0), Complex::new(2, 0)],
                 vec![
                     Complex::new(0, -1),
@@ -977,23 +974,23 @@ mod tests {
 
     #[test]
     fn trace_matrix_square() {
-        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4]; 5]);
+        let matrix = Matrix::new(vec![vec![0, 1, 2, 3, 4]; 5]);
         assert_eq!(matrix.trace(), 10);
     }
 
     #[test]
     #[should_panic]
     fn trace_matrix_rect() {
-        let matrix = Matrix::<u32>::new(vec![vec![0, 1, 2, 3, 4]; 3]);
+        let matrix = Matrix::new(vec![vec![0, 1, 2, 3, 4]; 3]);
         matrix.trace();
     }
 
     #[test]
     fn row_echelon_form() {
-        let matrix = Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
+        let matrix = Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
         assert_eq!(
             matrix.reduce(),
-            Matrix::<f32>::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0]])
+            Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0]])
         );
     }
 }

@@ -22,11 +22,11 @@ use crate::algebra::matrix::*;
 /// thus of size $1 \times d$
 /// * `rhs` - corresponds to $y$ above, expected to be of size $d \times 1$
 pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
-    let mut value: T = lhs[0][0] * rhs[0][0];
+    let mut value = lhs[0][0] * rhs[0][0];
     for i in 1..lhs.width() {
         value = value + lhs[0][i] * rhs[i][0];
     }
-    Matrix::<T>::scalar(value)
+    Matrix::scalar(value)
 }
 
 /// A naive implementation of the euclidean norm (colloquially, the 'length')
@@ -35,7 +35,7 @@ pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix
 ///
 /// * `matrix` - corresponds to $x$ above, expected to be of size $\dim x \times 1$
 pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T> {
-    Matrix::<T>::scalar(
+    Matrix::scalar(
         euclidean_scalar_product_naive(matrix, matrix)
             .to_scalar()
             .sqrt(),
@@ -80,21 +80,21 @@ pub fn nth_root(value: f64, n: f64) -> f64 {
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
 pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
-    let mut elements = Vec::<Vec<T>>::new();
+    let mut elements = Vec::new();
     for row in 0..lhs.height() {
-        elements.push(Vec::<T>::new());
+        elements.push(Vec::new());
         for col in 0..rhs.width() {
-            let mut r = Vec::<T>::new();
+            let mut r = Vec::new();
             for i in 0..rhs.height() {
                 r.push(rhs[i][col]);
             }
             elements[row].push(
-                (Matrix::<T>::vector(lhs[row].to_vec()).transpose() * Matrix::<T>::vector(r))
+                (Matrix::vector(lhs[row].to_vec()).transpose() * Matrix::<T>::vector(r))
                     .to_scalar(),
             );
         }
     }
-    Matrix::<T>::new(elements)
+    Matrix::new(elements)
 }
 
 /// A classic, naive implementation of the gaussian row reduction algorithm, with runtime
@@ -114,7 +114,7 @@ pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
             }
         }
     }
-    Matrix::<T>::new(elements)
+    Matrix::new(elements)
 }
 
 pub fn lu_decomp_naive<T: Field<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
