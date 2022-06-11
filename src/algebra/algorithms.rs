@@ -11,7 +11,7 @@
 //! wrong place right now.
 
 use num::{abs, pow, Float, Signed};
-use std::sync::{Condvar, Mutex};
+use std::sync::{mpsc, Mutex};
 use std::{sync::Arc, thread};
 
 use crate::algebra::matrix::*;
@@ -102,6 +102,7 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
     lhs: &Matrix<T>,
     rhs: &Matrix<T>,
 ) -> Matrix<T> {
+    println!("Called threaded");
     let num_threads = match thread::available_parallelism() {
         Ok(val) => val.get(),
         Err(err) => panic!(
@@ -109,59 +110,44 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
             err
         ),
     };
-    let result = Arc::new(Mutex::new(vec![
-        vec![num::zero(); rhs.width()];
-        lhs.height()
-    ]));
-    let queue = Arc::new(Mutex::new(Vec::new()));
-    let flag = Arc::new((Mutex::new(false), Condvar::new()));
-    let lhs_elements = Arc::new(lhs.elements());
-    let rhs_elements = Arc::new(rhs.elements());
-    let mut workers = Vec::new();
-    for _i in 0..num_threads {
-        let q = Arc::clone(&queue);
-        let f = Arc::clone(&flag);
-        let l = Arc::clone(&lhs_elements);
-        let r = Arc::clone(&rhs_elements);
-        let res = Arc::clone(&result);
-        workers.push(thread::spawn(move || loop {
-            let (lock, cond) = &*f;
-            let mut notified = lock.lock().unwrap();
-            while !*notified {
-                notified = cond.wait(notified).unwrap();
-                // TODO: break out if done flag is set
-            }
-            let (mut row, mut col) = (0, 0);
-            if let Some((r, c)) = q.lock().unwrap().pop() {
-                row = r;
-                col = c;
-            }
-            let mut rs = Vec::new();
-            for i in 0..r.len() {
-                rs.push(r[i][col]);
-            }
-            res.lock().unwrap()[row][col] =
-                (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
-        }));
-    }
+    let mut indices = Vec::new();
     for row in 0..lhs.height() {
         for col in 0..rhs.width() {
-            queue.lock().unwrap().push((row, col));
-            let (lock, cond) = &*flag;
-            let mut notified = lock.lock().unwrap();
-            *notified = true;
-            cond.notify_one();
+            indices.push((row, col));
         }
     }
-    // TODO: Wait until no more elements are inside the queue, then set done flag
-    let (lock, cond) = &*flag;
-    let mut notified = lock.lock().unwrap();
-    *notified = true;
-    cond.notify_all();
-    for thread in workers {
-        thread.join().unwrap();
+    let indices_handle = Arc::new(Mutex::new(indices));
+    let lhs_elements = Arc::new(lhs.elements());
+    let rhs_elements = Arc::new(rhs.elements());
+    let (tx, rx) = mpsc::channel();
+    let mut workers = Vec::new();
+    println!("Starting workers");
+    for _i in 0..num_threads {
+        let t = mpsc::Sender::clone(&tx);
+        let i = Arc::clone(&indices_handle);
+        let l = Arc::clone(&lhs_elements);
+        let r = Arc::clone(&rhs_elements);
+        workers.push(thread::spawn(move || {
+            println!("Started worker");
+            for (row, col) in i.lock().unwrap().pop() {
+                println!("Popped value {}, {}", row, col);
+                let mut rs = Vec::new();
+                for i in 0..r.len() {
+                    rs.push(r[i][col]);
+                }
+                let val =
+                    (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
+                t.send(((row, col), val)).unwrap();
+                println!("Sent across channel");
+            }
+        }));
     }
-    let res = result.lock().unwrap().to_vec();
+    println!("Receiving values");
+    let mut res = vec![vec![num::zero(); rhs.width()]; lhs.height()];
+    for ((row, col), val) in rx {
+        println!("Received value");
+        res[row][col] = val;
+    }
     Matrix::new(res)
 }
 
