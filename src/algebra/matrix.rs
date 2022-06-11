@@ -530,8 +530,8 @@ impl<T: Field<T>> Matrix<T> {
     /// of the method on the matrix and hence the results have not already been computed and cached.
     ///
     // TODO: Add logic to deduce rank and potentially determinant
-    pub fn reduce(mut self) -> MatrixLink<T> {
-        if let Some(reduced) = self.row_echelon_form {
+    pub fn reduce(&mut self) -> MatrixLink<T> {
+        if let Some(reduced) = &self.row_echelon_form {
             return Rc::clone(&reduced);
         }
         let row_echelon_form = gauss_elim_naive(&self);
@@ -987,10 +987,12 @@ mod tests {
 
     #[test]
     fn row_echelon_form() {
-        let matrix = Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
+        let mut matrix = Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
+        assert_eq!(matrix.row_echelon_form, None);
         assert_eq!(
             matrix.reduce(),
             Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0]])
         );
+        assert_ne!(matrix.row_echelon_form, None);
     }
 }
