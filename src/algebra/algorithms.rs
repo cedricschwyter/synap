@@ -110,10 +110,6 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
         ),
     };
     let chunk_size = lhs.height() * rhs.width() / num_threads;
-    dbg!(chunk_size);
-    dbg!(num_threads);
-    dbg!(num_threads * chunk_size);
-    dbg!(lhs.height() * rhs.width());
     let lhs_elements = Arc::new(lhs.elements());
     let rhs_elements = Arc::new(rhs.elements());
     let height = Arc::new(lhs.height());
