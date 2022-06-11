@@ -11,7 +11,7 @@
 //! wrong place right now.
 
 use num::{abs, pow, Float, Signed};
-use std::sync::{mpsc, Mutex};
+use std::sync::mpsc;
 use std::{sync::Arc, thread};
 
 use crate::algebra::matrix::*;
@@ -102,7 +102,6 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
     lhs: &Matrix<T>,
     rhs: &Matrix<T>,
 ) -> Matrix<T> {
-    println!("Called threaded");
     let num_threads = match thread::available_parallelism() {
         Ok(val) => val.get(),
         Err(err) => panic!(
@@ -110,27 +109,24 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
             err
         ),
     };
-    let mut indices = Vec::new();
-    for row in 0..lhs.height() {
-        for col in 0..rhs.width() {
-            indices.push((row, col));
-        }
-    }
-    let indices_handle = Arc::new(Mutex::new(indices));
+    let chunk_size = lhs.height() * rhs.width() / num_threads;
+    dbg!(chunk_size);
+    dbg!(num_threads);
+    dbg!(num_threads * chunk_size);
+    dbg!(lhs.height() * rhs.width());
     let lhs_elements = Arc::new(lhs.elements());
     let rhs_elements = Arc::new(rhs.elements());
+    let height = Arc::new(lhs.height());
     let (tx, rx) = mpsc::channel();
     let mut workers = Vec::new();
-    println!("Starting workers");
-    for _i in 0..num_threads {
-        let t = mpsc::Sender::clone(&tx);
-        let i = Arc::clone(&indices_handle);
+    for idx in 0..num_threads {
+        let t = tx.clone();
         let l = Arc::clone(&lhs_elements);
         let r = Arc::clone(&rhs_elements);
+        let h = Arc::clone(&height);
         workers.push(thread::spawn(move || {
-            println!("Started worker");
-            for (row, col) in i.lock().unwrap().pop() {
-                println!("Popped value {}, {}", row, col);
+            for i in idx * chunk_size..(idx + 1) * chunk_size {
+                let (row, col) = (i / *h, i % *h);
                 let mut rs = Vec::new();
                 for i in 0..r.len() {
                     rs.push(r[i][col]);
@@ -138,14 +134,22 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
                 let val =
                     (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
                 t.send(((row, col), val)).unwrap();
-                println!("Sent across channel");
             }
         }));
     }
-    println!("Receiving values");
+    drop(tx);
     let mut res = vec![vec![num::zero(); rhs.width()]; lhs.height()];
+    for i in num_threads * chunk_size..lhs.height() * rhs.width() {
+        let (row, col) = (i / lhs.height(), i % lhs.height());
+        let mut rs = Vec::new();
+        for i in 0..rhs_elements.len() {
+            rs.push(rhs_elements[i][col]);
+        }
+        res[row][col] = (Matrix::vector(lhs_elements[row].to_vec()).transpose()
+            * Matrix::vector(rs))
+        .to_scalar();
+    }
     for ((row, col), val) in rx {
-        println!("Received value");
         res[row][col] = val;
     }
     Matrix::new(res)
@@ -199,8 +203,10 @@ pub fn gram_schmidt<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
 mod tests {
     extern crate test;
 
-    use super::{gauss_elim_naive, *};
+    use super::*;
     use test::Bencher;
+
+    const MATRIX_BENCH_SIZE: usize = 200;
 
     #[test]
     fn test_mat_mul_naive() {
@@ -214,11 +220,10 @@ mod tests {
 
     #[bench]
     fn bench_mat_mul_naive(b: &mut Bencher) {
-        let size = 10;
         b.iter(|| {
             mat_mul_naive(
-                &Matrix::new(vec![vec![1; size]; size]),
-                &Matrix::new(vec![vec![2; size]; size]),
+                &Matrix::new(vec![vec![1; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+                &Matrix::new(vec![vec![2; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
             )
         });
     }
@@ -233,16 +238,15 @@ mod tests {
         );
     }
 
-    /*#[bench]
+    #[bench]
     fn bench_mat_mul_naive_threaded(b: &mut Bencher) {
-    let size = 100;
-    b.iter(|| {
-    mat_mul_naive_threaded(
-    &Matrix::new(vec![vec![1; size]; size]),
-    &Matrix::new(vec![vec![2; size]; size]),
-    )
-    });
-    }*/
+        b.iter(|| {
+            mat_mul_naive_threaded(
+                &Matrix::new(vec![vec![1; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+                &Matrix::new(vec![vec![2; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+            )
+        });
+    }
 
     #[test]
     fn test_gauss_elim_naive() {
