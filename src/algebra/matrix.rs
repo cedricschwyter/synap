@@ -56,13 +56,13 @@ pub struct Matrix<T: Field<T>> {
 }
 
 /// Wraps a `Matrix<T>` in a `RefCell` - Provides interior mutabilty
-type MatrixRef<T> = RefCell<Matrix<T>>;
+pub type MatrixRef<T> = RefCell<Matrix<T>>;
 
 /// Wraps a `MatrixRef<T>` in a `Rc` - Represents an owning link
-type MatrixLink<T> = Rc<MatrixRef<T>>;
+pub type MatrixLink<T> = Rc<MatrixRef<T>>;
 
 /// Wraps a `MatrixRef<T>` in a `Weak` - Represents a non-owning link
-type WeakMatrixLink<T> = Weak<MatrixRef<T>>;
+pub type WeakMatrixLink<T> = Weak<MatrixRef<T>>;
 
 impl<T: Field<T>> PartialEq for Matrix<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -221,7 +221,7 @@ impl<T: Field<T>> Matrix<T> {
                 elements[col].push(self[row][col]);
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 
     /// Scales a matrix $A$ by a scalar $\alpha$.
@@ -236,7 +236,7 @@ impl<T: Field<T>> Matrix<T> {
                 elements[row].push(lhs.to_scalar() * self[row][col]);
             }
         }
-        Matrix::<T>::new(elements)
+        Matrix::new(elements)
     }
 
     /// Computes the inverse of the matrix $A$, that is, returns $A^{-1}$ if it exists. Panics
@@ -416,7 +416,7 @@ impl<T: Field<T>> Matrix<T> {
         }
         let rank = rank_naive(self);
         self.rank = Some(rank);
-        return rank;
+        rank
     }
 
     /// Checks whether the matrix $A$ is full rank, i.e., if $A$ is of dimension $n \times n$ it checks whether $\text{rank} A = n$.

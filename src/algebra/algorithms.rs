@@ -11,6 +11,8 @@
 //! wrong place right now.
 
 use num::{abs, pow, Float, Signed};
+use std::sync::{Condvar, Mutex};
+use std::{sync::Arc, thread};
 
 use crate::algebra::matrix::*;
 
@@ -89,12 +91,78 @@ pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T>
                 r.push(rhs[i][col]);
             }
             elements[row].push(
-                (Matrix::vector(lhs[row].to_vec()).transpose() * Matrix::<T>::vector(r))
-                    .to_scalar(),
+                (Matrix::vector(lhs[row].to_vec()).transpose() * Matrix::vector(r)).to_scalar(),
             );
         }
     }
     Matrix::new(elements)
+}
+
+pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
+    lhs: &Matrix<T>,
+    rhs: &Matrix<T>,
+) -> Matrix<T> {
+    let num_threads = match thread::available_parallelism() {
+        Ok(val) => val.get(),
+        Err(err) => panic!(
+            "could not enumerate available amount of parallelism in mat_mul_naive_threaded: {}",
+            err
+        ),
+    };
+    let result = Arc::new(Mutex::new(vec![
+        vec![num::zero(); rhs.width()];
+        lhs.height()
+    ]));
+    let queue = Arc::new(Mutex::new(Vec::new()));
+    let flag = Arc::new((Mutex::new(false), Condvar::new()));
+    let lhs_elements = Arc::new(lhs.elements());
+    let rhs_elements = Arc::new(rhs.elements());
+    let mut workers = Vec::new();
+    for _i in 0..num_threads {
+        let q = Arc::clone(&queue);
+        let f = Arc::clone(&flag);
+        let l = Arc::clone(&lhs_elements);
+        let r = Arc::clone(&rhs_elements);
+        let res = Arc::clone(&result);
+        workers.push(thread::spawn(move || loop {
+            let (lock, cond) = &*f;
+            let mut notified = lock.lock().unwrap();
+            while !*notified {
+                notified = cond.wait(notified).unwrap();
+                // TODO: break out if done flag is set
+            }
+            let (mut row, mut col) = (0, 0);
+            if let Some((r, c)) = q.lock().unwrap().pop() {
+                row = r;
+                col = c;
+            }
+            let mut rs = Vec::new();
+            for i in 0..r.len() {
+                rs.push(r[i][col]);
+            }
+            res.lock().unwrap()[row][col] =
+                (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
+        }));
+    }
+    for row in 0..lhs.height() {
+        for col in 0..rhs.width() {
+            queue.lock().unwrap().push((row, col));
+            let (lock, cond) = &*flag;
+            let mut notified = lock.lock().unwrap();
+            *notified = true;
+            cond.notify_one();
+        }
+    }
+    // TODO: Wait until no more elements are inside the queue, then set done flag
+    let (lock, cond) = &*flag;
+    let mut notified = lock.lock().unwrap();
+    *notified = true;
+    cond.notify_all();
+    for thread in workers {
+        thread.join().unwrap();
+    }
+    let res = result.lock().unwrap().to_vec();
+    Matrix::new(res)
 }
 
 /// A classic, naive implementation of the gaussian row reduction algorithm, with runtime
@@ -152,7 +220,10 @@ mod tests {
     fn test_mat_mul_naive() {
         let lhs = Matrix::<u32>::identity(5);
         let rhs = Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]);
-        assert_eq!(lhs * rhs, Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]));
+        assert_eq!(
+            mat_mul_naive(&lhs, &rhs),
+            Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5])
+        );
     }
 
     #[bench]
@@ -165,6 +236,27 @@ mod tests {
             )
         });
     }
+
+    #[test]
+    fn test_mat_mul_naive_threaded() {
+        let lhs = Matrix::<u32>::identity(5);
+        let rhs = Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]);
+        assert_eq!(
+            mat_mul_naive_threaded(&lhs, &rhs),
+            Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5])
+        );
+    }
+
+    /*#[bench]
+    fn bench_mat_mul_naive_threaded(b: &mut Bencher) {
+    let size = 100;
+    b.iter(|| {
+    mat_mul_naive_threaded(
+    &Matrix::new(vec![vec![1; size]; size]),
+    &Matrix::new(vec![vec![2; size]; size]),
+    )
+    });
+    }*/
 
     #[test]
     fn test_gauss_elim_naive() {
