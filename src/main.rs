@@ -1,9 +1,6 @@
-use synap::algebra::{algorithms::mat_mul_naive_threaded, matrix::Matrix};
+use synap::algebra::{algorithms::inverse_naive, matrix::Matrix};
 
 fn main() {
-    let size = 3;
-    dbg!(mat_mul_naive_threaded(
-        &Matrix::new(vec![vec![1; size]; size]),
-        &Matrix::new(vec![vec![2; size]; size]),
-    ));
+    let matrix = Matrix::new(vec![vec![1, 0, 0], vec![0, 1, 0], vec![1, 0, 1]]);
+    dbg!(inverse_naive(&matrix));
 }

@@ -98,6 +98,13 @@ pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T>
     Matrix::new(elements)
 }
 
+/// A naive implementation of the matrix multiplication algorithm, a classic $O(m^3)$
+/// implementation, running on as many threads as allowed by the host.
+/// It multiplies together matrices $A, B$ of sizes $n \times m$ and $m \times p$ respectively and
+/// returns a matrix of size $n \times p$.
+///
+/// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
+/// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
 pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
     lhs: &Matrix<T>,
     rhs: &Matrix<T>,
@@ -187,8 +194,30 @@ pub fn rank_naive<T: Field<T>>(matrix: &Matrix<T>) -> usize {
     unimplemented!();
 }
 
+/// Computes $A^{-1}$ from matrix $A$ using the Gauss-Jordan method. It runs in $O(n^3)$.
+///
+/// * `matrix` - the matrix to invert, corresponds to $A$ above
 pub fn inverse_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
-    unimplemented!()
+    let mut augmented = matrix.elements();
+    let size = matrix.width();
+    let identity = Matrix::identity(size);
+    for row in 0..size {
+        for col in 0..size {
+            augmented[row].push(identity[row][col]);
+        }
+    }
+    let mut augmented = Matrix::new(augmented);
+    let mut reduced = augmented.reduce().borrow().elements();
+    for i in 0..size {
+        for j in size..2 * size {
+            reduced[i][j] = reduced[i][j] / reduced[i][i];
+        }
+    }
+    let mut inverse = Vec::new();
+    for i in 0..size {
+        inverse.push(reduced[i][size..].to_vec());
+    }
+    Matrix::new(inverse)
 }
 
 pub fn gram_schmidt<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
@@ -269,6 +298,17 @@ mod tests {
                 vec![91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
             ]))
         })
+    }
+
+    #[test]
+    fn test_inverse_naive() {
+        let matrix = Matrix::<u32>::identity(5);
+        assert_eq!(inverse_naive(&matrix), Matrix::<u32>::identity(5));
+        let matrix = Matrix::new(vec![vec![1, 0, 0], vec![0, 1, 0], vec![1, 0, 1]]);
+        assert_eq!(
+            inverse_naive(&matrix),
+            Matrix::new(vec![vec![1, 0, 0], vec![0, 1, 0], vec![-1, 0, 1]])
+        );
     }
 
     #[test]
