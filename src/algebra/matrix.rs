@@ -38,17 +38,16 @@ impl<T: Num + Debug + Copy> Field<T> for T {}
 /// The matrix. The fundamental building block of this crate. A very versatile struct, intending to
 /// perform expensive computations only once and then memoizing/caching the results. The struct is guaranteed to be
 /// in an internally consistent state at all times.
-#[derive(Debug)]
-pub struct Matrix<T: Field<T>> {
-    elements: Vec<Vec<T>>,
+pub struct Matrix<T: Field<T>, E: MatrixAccessor<T> + Clone> {
+    elements: E,
     width: usize,
     height: usize,
     rank: Option<usize>,
     det: Option<T>,
-    inverse: Option<WeakMatrixLink<T>>,
-    row_echelon_form: Option<MatrixLink<T>>,
-    lu_decomposition: Option<(MatrixLink<T>, MatrixLink<T>)>,
-    qr_decomposition: Option<(MatrixLink<T>, MatrixLink<T>)>,
+    inverse: Option<WeakMatrixLink<T, E>>,
+    row_echelon_form: Option<MatrixLink<T, E>>,
+    lu_decomposition: Option<(MatrixLink<T, E>, MatrixLink<T, E>)>,
+    qr_decomposition: Option<(MatrixLink<T, E>, MatrixLink<T, E>)>,
     is_orthogonal: Option<bool>,
     is_normal: Option<bool>,
     is_orthonormal: Option<bool>,
@@ -56,58 +55,123 @@ pub struct Matrix<T: Field<T>> {
 }
 
 /// Wraps a `Matrix<T>` in a `RefCell` - Provides interior mutabilty
-pub type MatrixRef<T> = RefCell<Matrix<T>>;
+pub type MatrixRef<T, E> = RefCell<Matrix<T, E>>;
 
 /// Wraps a `MatrixRef<T>` in a `Rc` - Represents an owning link
-pub type MatrixLink<T> = Rc<MatrixRef<T>>;
+pub type MatrixLink<T, E> = Rc<MatrixRef<T, E>>;
 
 /// Wraps a `MatrixRef<T>` in a `Weak` - Represents a non-owning link
-pub type WeakMatrixLink<T> = Weak<MatrixRef<T>>;
+pub type WeakMatrixLink<T, E> = Weak<MatrixRef<T, E>>;
 
-impl<T: Field<T>> PartialEq for Matrix<T> {
+/// A trait that describes functionality that must be supported by a matrix accessor type. Using
+/// this trait we support different storage formats
+pub trait MatrixAccessor<T: Field<T>>: PartialEq + Clone {
+    fn init(width: usize, height: usize) -> Self;
+    fn get(&self, i: usize, j: usize) -> T;
+    fn set(&mut self, i: usize, j: usize, value: T);
+    /// returns matrix indices with non-default values
+    fn indices(&self) -> Vec<(usize, usize)>;
+    fn width(&self) -> usize;
+    fn height(&self) -> usize;
+}
+
+/// Describes dense matrix storage layouts
+#[derive(Clone, Debug)]
+pub enum DenseLayoutType {
+    ColumnMajor,
+    RowMajor,
+}
+
+/// Use this accessor to represent a dense matrix
+#[derive(Clone, Debug)]
+pub struct DenseAccessor<T: Field<T>> {
+    elements: Vec<Vec<T>>,
+    layout: DenseLayoutType,
+    width: usize,
+    height: usize,
+}
+
+impl<T: Field<T>> MatrixAccessor<T> for DenseAccessor<T> {
+    fn init(width: usize, height: usize) -> Self {
+        DenseAccessor {
+            elements: vec![vec![num::zero(); width]; height],
+            layout: DenseLayoutType::RowMajor,
+            width,
+            height,
+        }
+    }
+
+    fn get(&self, i: usize, j: usize) -> T {
+        match self.layout {
+            DenseLayoutType::ColumnMajor => self.elements[j][i],
+            DenseLayoutType::RowMajor => self.elements[i][j],
+        }
+    }
+
+    fn set(&mut self, i: usize, j: usize, value: T) {
+        match self.layout {
+            DenseLayoutType::ColumnMajor => self.elements[j][i] = value,
+            DenseLayoutType::RowMajor => self.elements[i][j] = value,
+        };
+    }
+
+    fn indices(&self) -> Vec<(usize, usize)> {
+        todo!("generate and return all indices")
+    }
+
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn height(&self) -> usize {
+        self.height
+    }
+}
+
+impl<T: Field<T>> Index<usize> for DenseAccessor<T> {
+    type Output = Vec<T>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.elements[index]
+    }
+}
+
+impl<T: Field<T>, E: MatrixAccessor<T>> PartialEq<E> for DenseAccessor<T> {
+    fn eq(&self, other: &E) -> bool {
+        todo!()
+    }
+}
+
+impl<T: Field<T>, E: MatrixAccessor<T>> PartialEq for Matrix<T, E> {
     fn eq(&self, other: &Self) -> bool {
         self.elements == other.elements
     }
 }
 
-impl<T: Field<T>> PartialEq<MatrixLink<T>> for Matrix<T> {
-    fn eq(&self, other: &MatrixLink<T>) -> bool {
+impl<T: Field<T>, E: MatrixAccessor<T>> PartialEq<MatrixLink<T, E>> for Matrix<T, E> {
+    fn eq(&self, other: &MatrixLink<T, E>) -> bool {
         self.elements == other.borrow().elements
     }
 }
 
-impl<T: Field<T>> PartialEq<Matrix<T>> for MatrixLink<T> {
-    fn eq(&self, other: &Matrix<T>) -> bool {
+impl<T: Field<T>, E: MatrixAccessor<T>> PartialEq<Matrix<T, E>> for MatrixLink<T, E> {
+    fn eq(&self, other: &Matrix<T, E>) -> bool {
         self.borrow().elements == other.elements
     }
 }
 
 /// Default implementation of functions and methods for arbitrary fields.
-impl<T: Field<T>> Matrix<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> Matrix<T, E> {
     /// Default constructor. All matrix initialization is supposed to go through this call to
     /// ensure internal consistency with dimension values.
     ///
     /// * `elements` - a two dimensional vector of field elements representing the rows of a
     /// matrix, rows are expected to be of the same length, panics otherwise
-    pub fn new(elements: Vec<Vec<T>>) -> Matrix<T> {
-        if elements.is_empty() {
-            panic!("attempting to create matrix with no elements");
-        }
-        let height = elements.len();
-        let width = elements[0].len();
-        for row in &elements {
-            if row.len() != width {
-                panic!(
-                    "matrix rows do not contain equal number of elements, expected {}, got {}",
-                    width,
-                    row.len()
-                );
-            }
-        }
+    pub fn new(elements: E) -> Matrix<T, E> {
         Matrix {
             elements,
-            width,
-            height,
+            width: elements.width(),
+            height: elements.height(),
             rank: None,
             det: None,
             inverse: None,
@@ -132,7 +196,7 @@ impl<T: Field<T>> Matrix<T> {
     }
 
     /// Getter for the raw elements of the matrix
-    pub fn elements(&self) -> Vec<Vec<T>> {
+    pub fn elements(&self) -> E {
         self.elements.clone()
     }
 
@@ -150,8 +214,8 @@ impl<T: Field<T>> Matrix<T> {
     /// where $d$ is the dimension.
     ///
     /// * `dimension` - the dimension of the square identity matrix, given above by $d$
-    pub fn identity(dimension: usize) -> Matrix<T> {
-        let mut elements = vec![vec![num::zero(); dimension]; dimension];
+    pub fn identity(dimension: usize) -> Matrix<T, E> {
+        let mut elements = DenseAccessor::init(dimension, dimension);
         for row in 0..dimension {
             for col in 0..dimension {
                 if row == col {
@@ -178,7 +242,7 @@ impl<T: Field<T>> Matrix<T> {
     ///
     /// * `height` - the height of the identity matrix, given above by $n$
     /// * `width` - the width of the identity matrix, given above by $m$
-    pub fn identity_rect(height: usize, width: usize) -> Matrix<T> {
+    pub fn identity_rect(height: usize, width: usize) -> Matrix<T, E> {
         let mut elements = vec![vec![num::zero(); width]; height];
         for row in 0..height {
             for col in 0..width {
@@ -193,14 +257,14 @@ impl<T: Field<T>> Matrix<T> {
     /// Convenience constructor for a vector $x$, that is, a $\dim x \times 1$ matrix.
     ///
     /// * `elements` - a vector of length $\dim x$ of elements corresponding to the elements of $x$
-    pub fn vector(elements: Vec<T>) -> Matrix<T> {
+    pub fn vector(elements: Vec<T>) -> Matrix<T, E> {
         Matrix::new(vec![elements]).transpose()
     }
 
     /// Convenience constructor for a scalar $\alpha$, that is, a $1 \times 1$ matrix.
     ///
     /// * `element` - a single element representing the scalar value of $\alpha$
-    pub fn scalar(element: T) -> Matrix<T> {
+    pub fn scalar(element: T) -> Matrix<T, E> {
         Matrix::vector(vec![element])
     }
 
@@ -213,7 +277,7 @@ impl<T: Field<T>> Matrix<T> {
 
     /// Computes the transpose of the matrix, that is, if the matrix $A$ is of dimension $n \times
     /// m$ the method returns $A^T$ of size $m \times n$.
-    pub fn transpose(&self) -> Matrix<T> {
+    pub fn transpose(&self) -> Matrix<T, E> {
         let mut elements = Vec::new();
         for col in 0..self.width {
             elements.push(Vec::new());
@@ -227,7 +291,7 @@ impl<T: Field<T>> Matrix<T> {
     /// Scales a matrix $A$ by a scalar $\alpha$.
     ///
     /// * `lhs` - corresponds to $\alpha$ above, expected to be of size $1 \times 1$
-    pub fn scale(&self, lhs: Matrix<T>) -> Matrix<T> {
+    pub fn scale(&self, lhs: Matrix<T, E>) -> Matrix<T, E> {
         lhs.assert_scalar();
         let mut elements = Vec::new();
         for row in 0..self.height {
@@ -245,7 +309,7 @@ impl<T: Field<T>> Matrix<T> {
     /// ## Caution:
     /// This method can incur unexpected comparatively expensive computations if $A$ is a square matrix and $\det A$, $\text{rank} A$ and $A^{-1}$ have not
     /// already been computed and cached.
-    pub fn inverse(mut self) -> MatrixLink<T> {
+    pub fn inverse(mut self) -> MatrixLink<T, E> {
         if let Some(inverse) = self.inverse {
             return match inverse.upgrade() {
                 Some(val) => Rc::clone(&val),
@@ -530,7 +594,7 @@ impl<T: Field<T>> Matrix<T> {
     /// of the method on the matrix and hence the results have not already been computed and cached.
     ///
     // TODO: Add logic to deduce rank and potentially determinant
-    pub fn reduce(&mut self) -> MatrixLink<T> {
+    pub fn reduce(&mut self) -> MatrixLink<T, E> {
         if let Some(reduced) = &self.row_echelon_form {
             return Rc::clone(&reduced);
         }
@@ -542,7 +606,7 @@ impl<T: Field<T>> Matrix<T> {
     }
 }
 
-impl<T: Field<T> + Neg<Output = T>> Matrix<T> {
+impl<T: Field<T> + Neg<Output = T>, E: MatrixAccessor<T>> Matrix<T, E> {
     /// Checks whether the matrix $A$ is skew-symmetric, that is, whether it holds that $A^T = -A$.
     pub fn is_skew_symmetric(&self) -> bool {
         let transpose = self.transpose();
@@ -559,14 +623,14 @@ impl<T: Field<T> + Neg<Output = T>> Matrix<T> {
 }
 
 /// Defines an iterator for [`Matrix`](Matrix) structs
-pub struct MatrixIterator<T: Field<T>> {
-    matrix: Matrix<T>,
+pub struct MatrixIterator<T: Field<T>, E: MatrixAccessor<T>> {
+    matrix: Matrix<T, E>,
     row: usize,
 }
 
-impl<T: Field<T>> IntoIterator for Matrix<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> IntoIterator for Matrix<T, E> {
     type Item = Vec<T>;
-    type IntoIter = MatrixIterator<T>;
+    type IntoIter = MatrixIterator<T, E>;
     fn into_iter(self) -> Self::IntoIter {
         MatrixIterator {
             matrix: self,
@@ -575,7 +639,7 @@ impl<T: Field<T>> IntoIterator for Matrix<T> {
     }
 }
 
-impl<T: Field<T>> Iterator for MatrixIterator<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> Iterator for MatrixIterator<T, E> {
     type Item = Vec<T>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -589,9 +653,9 @@ impl<T: Field<T>> Iterator for MatrixIterator<T> {
 }
 
 /// Special implementation for complex numbers.
-impl<T: Field<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
+impl<T: Field<T> + Num + Neg<Output = T>, E: MatrixAccessor<Complex<T>>> Matrix<Complex<T>, E> {
     /// Computes the hermitian transpose of a matrix $A$, that is, computes $A^H$.
-    pub fn hermitian(&self) -> Matrix<Complex<T>> {
+    pub fn hermitian(&self) -> Matrix<Complex<T>, E> {
         let mut transpose = self.transpose();
         for row in 0..transpose.height() {
             for col in 0..transpose.width() {
@@ -617,7 +681,7 @@ impl<T: Field<T> + Num + Neg<Output = T>> Matrix<Complex<T>> {
     }
 }
 
-impl<T: Field<T>> Index<usize> for Matrix<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> Index<usize> for Matrix<T, E> {
     type Output = Vec<T>;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -625,7 +689,7 @@ impl<T: Field<T>> Index<usize> for Matrix<T> {
     }
 }
 
-impl<T: Field<T>> Add for Matrix<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> Add for Matrix<T, E> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -641,7 +705,7 @@ impl<T: Field<T>> Add for Matrix<T> {
     }
 }
 
-impl<T: Field<T>> Sub for Matrix<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> Sub for Matrix<T, E> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -657,7 +721,7 @@ impl<T: Field<T>> Sub for Matrix<T> {
     }
 }
 
-impl<T: Field<T> + Neg<Output = T>> Neg for Matrix<T> {
+impl<T: Field<T> + Neg<Output = T>, E: MatrixAccessor<T>> Neg for Matrix<T, E> {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -672,7 +736,7 @@ impl<T: Field<T> + Neg<Output = T>> Neg for Matrix<T> {
     }
 }
 
-impl<T: Field<T>> Mul for Matrix<T> {
+impl<T: Field<T>, E: MatrixAccessor<T>> Mul for Matrix<T, E> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {

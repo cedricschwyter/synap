@@ -22,7 +22,10 @@ use crate::algebra::matrix::*;
 ///
 /// * `lhs` - corresponds to $x^T$ above, of size $1 \times d$
 /// * `rhs` - corresponds to $y$ above, expected to be of size $d \times 1$
-pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
+pub fn euclidean_scalar_product_naive<T: Field<T>, E: MatrixAccessor<T>>(
+    lhs: &Matrix<T, E>,
+    rhs: &Matrix<T, E>,
+) -> Matrix<T, E> {
     let mut value = lhs[0][0] * rhs[0][0];
     for i in 1..lhs.width() {
         value = value + lhs[0][i] * rhs[i][0];
@@ -36,7 +39,9 @@ pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix
 /// implementation does not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - corresponds to $x$ above, expected to be of size $\dim x \times 1$
-pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn euclidean_norm_naive<T: Field<T> + Float, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+) -> Matrix<T, E> {
     Matrix::scalar(
         euclidean_scalar_product_naive(matrix, matrix)
             .to_scalar()
@@ -49,7 +54,10 @@ pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T
 /// not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - corresponds to the $x$ above, expected to be of size $\dim x \times 1$
-pub fn p_norm_naive<T: Field<T> + Float + Signed>(matrix: &Matrix<T>, p: usize) -> Matrix<f64> {
+pub fn p_norm_naive<T: Field<T> + Float + Signed, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+    p: usize,
+) -> Matrix<f64, DenseAccessor<f64>> {
     let mut value: T = num::zero();
     for i in 0..matrix.height() {
         value = value + pow(abs(matrix[i][0]), p);
@@ -83,7 +91,10 @@ pub fn nth_root(value: f64, n: f64) -> f64 {
 ///
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
-pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
+pub fn mat_mul_naive<T: Field<T>, E: MatrixAccessor<T>>(
+    lhs: &Matrix<T, E>,
+    rhs: &Matrix<T, E>,
+) -> Matrix<T, E> {
     let mut elements = Vec::new();
     for row in 0..lhs.height() {
         elements.push(Vec::new());
@@ -107,10 +118,10 @@ pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T>
 ///
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
-pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
-    lhs: &Matrix<T>,
-    rhs: &Matrix<T>,
-) -> Matrix<T> {
+pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static, E: MatrixAccessor<T>>(
+    lhs: &Matrix<T, E>,
+    rhs: &Matrix<T, E>,
+) -> Matrix<T, E> {
     let num_threads = match thread::available_parallelism() {
         Ok(val) => val.get(),
         Err(err) => panic!(
@@ -166,7 +177,7 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
 /// provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - the matrix to reduce
-pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn gauss_elim_naive<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> Matrix<T, E> {
     let mut elements = matrix.elements();
     for i in 1..matrix.height() {
         for j in 0..i {
@@ -181,19 +192,23 @@ pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
     Matrix::new(elements)
 }
 
-pub fn lu_decomp_naive<T: Field<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
+pub fn lu_decomp_naive<T: Field<T>, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+) -> (Matrix<T, E>, Matrix<T, E>) {
     unimplemented!();
 }
 
-pub fn qr_decomp_naive<T: Field<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
+pub fn qr_decomp_naive<T: Field<T>, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+) -> (Matrix<T, E>, Matrix<T, E>) {
     unimplemented!();
 }
 
-pub fn det_naive<T: Field<T>>(matrix: &Matrix<T>) -> T {
+pub fn det_naive<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> T {
     unimplemented!();
 }
 
-pub fn rank_naive<T: Field<T>>(matrix: &Matrix<T>) -> usize {
+pub fn rank_naive<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> usize {
     unimplemented!();
 }
 
@@ -201,7 +216,7 @@ pub fn rank_naive<T: Field<T>>(matrix: &Matrix<T>) -> usize {
 /// implementation does not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - the matrix to invert, corresponds to $A$ above
-pub fn inverse_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn inverse_naive<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> Matrix<T, E> {
     let mut augmented = matrix.elements();
     let size = matrix.width();
     let identity = Matrix::identity(size);
@@ -224,7 +239,7 @@ pub fn inverse_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
     Matrix::new(inverse)
 }
 
-pub fn gram_schmidt<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn gram_schmidt<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> Matrix<T, E> {
     unimplemented!();
 }
 
