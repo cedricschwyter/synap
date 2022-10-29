@@ -12,7 +12,7 @@ use std::rc::{Rc, Weak};
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
-/// Note that this trait enforces the axioms of a field. Therefore matrices can be
+/// Note that this trait describes the axioms of a field. Therefore matrices can be
 /// constructed over an arbitrary field and are not restricted to the built-in numeric/complex
 /// types, and it is guaranteed that all the algorithms work. Except for the additive inverse
 /// operation (trait [`Neg`](std::ops::Neg)) all field axioms are enforced by the compiler here already.

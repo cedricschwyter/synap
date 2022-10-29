@@ -16,12 +16,11 @@ use std::{sync::Arc, thread};
 
 use crate::algebra::matrix::*;
 
-/// A straightforward implementation of the euclidean scalar product
+/// A straightforward, generic implementation of the euclidean scalar product
 /// $\langle x, y \rangle = x^T y$ of two vectors $x, y$ that returns a scalar matrix (a 1 x 1 matrix) corresponding to the
-/// numerical value of the scalar product.
+/// numerical value of the scalar product. This implementation is numerically stable.
 ///
-/// * `lhs` - corresponds to $x^T$ above, is expected to be in transposed form ($x^T$) already,
-/// thus of size $1 \times d$
+/// * `lhs` - corresponds to $x^T$ above, of size $1 \times d$
 /// * `rhs` - corresponds to $y$ above, expected to be of size $d \times 1$
 pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
     let mut value = lhs[0][0] * rhs[0][0];
@@ -31,9 +30,10 @@ pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix
     Matrix::scalar(value)
 }
 
-/// A naive implementation of the euclidean norm (colloquially, the 'length')
+/// A naive implementation of the euclidean norm
 /// $\lvert \lvert x \rvert \rvert = \sqrt{\langle x, x \rangle}$ of a vector $x$ that returns a
-/// scalar matrix (a 1 x 1 matrix) corresponding to the numerical value of the norm.
+/// scalar matrix (a 1 x 1 matrix) corresponding to the numerical value of the norm. This
+/// implementation does not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - corresponds to $x$ above, expected to be of size $\dim x \times 1$
 pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T> {
@@ -45,7 +45,8 @@ pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T
 }
 
 /// A naive implementation of the more general $p$-norm: $\lvert \lvert x \rvert \rvert_p =
-/// (\lvert x_1 \rvert ^ p + ... + \lvert x_n \rvert ^ p)^\frac{1}{p}$.
+/// (\lvert x_1 \rvert ^ p + ... + \lvert x_n \rvert ^ p)^\frac{1}{p}$. This implementation does
+/// not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - corresponds to the $x$ above, expected to be of size $\dim x \times 1$
 pub fn p_norm_naive<T: Field<T> + Float + Signed>(matrix: &Matrix<T>, p: usize) -> Matrix<f64> {
@@ -58,7 +59,8 @@ pub fn p_norm_naive<T: Field<T> + Float + Signed>(matrix: &Matrix<T>, p: usize) 
 
 /// [https://rosettacode.org/wiki/Nth_root#Rust](https://rosettacode.org/wiki/Nth_root#Rust)
 ///
-/// Solves for $x$ in $x^n = v$.
+/// Solves for $x$ in $x^n = v$. This implementation does not provide any guarantees about its
+/// numerical stability
 ///
 /// * `value` - corresponds to $v$ above
 /// * `n` - corresponds to $n$ above
@@ -77,7 +79,7 @@ pub fn nth_root(value: f64, n: f64) -> f64 {
 /// A naive implementation of the matrix multiplication algorithm, a classic $O(m^3)$
 /// implementation.
 /// It multiplies together matrices $A, B$ of sizes $n \times m$ and $m \times p$ respectively and
-/// returns a matrix of size $n \times p$.
+/// returns a matrix of size $n \times p$. This implementation is numerically stable.
 ///
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
@@ -101,7 +103,7 @@ pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T>
 /// A naive implementation of the matrix multiplication algorithm, a classic $O(m^3)$
 /// implementation, running on as many threads as allowed by the host.
 /// It multiplies together matrices $A, B$ of sizes $n \times m$ and $m \times p$ respectively and
-/// returns a matrix of size $n \times p$.
+/// returns a matrix of size $n \times p$. This implementation is numerically stable.
 ///
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
@@ -160,7 +162,8 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
 
 /// A classic, naive implementation of the gaussian row reduction algorithm, with runtime
 /// complexity $O(n^3)$. Returns a new matrix that corresponds to the row-reduced variant of the
-/// input matrix. Transforms the input matrix into row-echelon form.
+/// input matrix. Transforms the input matrix into row-echelon form. This implementation does not
+/// provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - the matrix to reduce
 pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
@@ -194,7 +197,8 @@ pub fn rank_naive<T: Field<T>>(matrix: &Matrix<T>) -> usize {
     unimplemented!();
 }
 
-/// Computes $A^{-1}$ from matrix $A$ using the Gauss-Jordan method. It runs in $O(n^3)$.
+/// Computes $A^{-1}$ from matrix $A$ using the Gauss-Jordan method. It runs in $O(n^3)$. This
+/// implementation does not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - the matrix to invert, corresponds to $A$ above
 pub fn inverse_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
