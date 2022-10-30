@@ -65,7 +65,7 @@ pub type WeakMatrixLink<T, E> = Weak<MatrixRef<T, E>>;
 
 /// A trait that describes functionality that must be supported by a matrix accessor type. Using
 /// this trait we support different storage formats
-pub trait MatrixAccessor<T: Field<T>>: PartialEq + Clone {
+pub trait MatrixAccessor<T: Field<T>>: PartialEq + Clone + Index<usize> {
     fn init(width: usize, height: usize) -> Self;
     fn get(&self, i: usize, j: usize) -> T;
     fn set(&mut self, i: usize, j: usize, value: T);
@@ -125,6 +125,33 @@ impl<T: Field<T>> MatrixAccessor<T> for DenseAccessor<T> {
 
     fn height(&self) -> usize {
         self.height
+    }
+}
+
+impl<T: Field<T>> DenseAccessor<T> {
+    fn from_rows(elements: Vec<Vec<T>>) -> DenseAccessor<T> {
+        let height = elements.len();
+        let width = elements[0].len();
+        if elements.is_empty() {
+            panic!("attempting to create matrix with no elements");
+        }
+        let height = elements.len();
+        let width = elements[0].len();
+        for row in &elements {
+            if row.len() != width {
+                panic!(
+                    "matrix rows do not contain equal number of elements, expected {}, got {}",
+                    width,
+                    row.len()
+                );
+            }
+        }
+        DenseAccessor {
+            elements,
+            layout: DenseLayoutType::RowMajor,
+            width,
+            height,
+        }
     }
 }
 
@@ -214,7 +241,7 @@ impl<T: Field<T>, E: MatrixAccessor<T>> Matrix<T, E> {
     /// where $d$ is the dimension.
     ///
     /// * `dimension` - the dimension of the square identity matrix, given above by $d$
-    pub fn identity(dimension: usize) -> Matrix<T, E> {
+    pub fn identity(dimension: usize) -> Matrix<T, DenseAccessor<T>> {
         let mut elements = DenseAccessor::init(dimension, dimension);
         for row in 0..dimension {
             for col in 0..dimension {
@@ -242,8 +269,8 @@ impl<T: Field<T>, E: MatrixAccessor<T>> Matrix<T, E> {
     ///
     /// * `height` - the height of the identity matrix, given above by $n$
     /// * `width` - the width of the identity matrix, given above by $m$
-    pub fn identity_rect(height: usize, width: usize) -> Matrix<T, E> {
-        let mut elements = vec![vec![num::zero(); width]; height];
+    pub fn identity_rect(height: usize, width: usize) -> Matrix<T, DenseAccessor<T>> {
+        let mut elements = DenseAccessor::init(width, height);
         for row in 0..height {
             for col in 0..width {
                 if row == col {
@@ -257,15 +284,15 @@ impl<T: Field<T>, E: MatrixAccessor<T>> Matrix<T, E> {
     /// Convenience constructor for a vector $x$, that is, a $\dim x \times 1$ matrix.
     ///
     /// * `elements` - a vector of length $\dim x$ of elements corresponding to the elements of $x$
-    pub fn vector(elements: Vec<T>) -> Matrix<T, E> {
-        Matrix::new(vec![elements]).transpose()
+    pub fn vector(elements: Vec<T>) -> Matrix<T, DenseAccessor<T>> {
+        Matrix::new(DenseAccessor::from_rows(vec![elements])).transpose()
     }
 
     /// Convenience constructor for a scalar $\alpha$, that is, a $1 \times 1$ matrix.
     ///
     /// * `element` - a single element representing the scalar value of $\alpha$
-    pub fn scalar(element: T) -> Matrix<T, E> {
-        Matrix::vector(vec![element])
+    pub fn scalar(element: T) -> Matrix<T, DenseAccessor<T>> {
+        Matrix::<T, E>::vector(vec![element])
     }
 
     /// Unwraps the $1 \times 1$ matrix into the underlying field element $\alpha$.
@@ -277,12 +304,11 @@ impl<T: Field<T>, E: MatrixAccessor<T>> Matrix<T, E> {
 
     /// Computes the transpose of the matrix, that is, if the matrix $A$ is of dimension $n \times
     /// m$ the method returns $A^T$ of size $m \times n$.
-    pub fn transpose(&self) -> Matrix<T, E> {
-        let mut elements = Vec::new();
+    pub fn transpose(&self) -> Matrix<T, DenseAccessor<T>> {
+        let mut elements = DenseAccessor::init(self.height, self.width);
         for col in 0..self.width {
-            elements.push(Vec::new());
             for row in 0..self.height {
-                elements[col].push(self[row][col]);
+                elements[col][row] = self[row][col];
             }
         }
         Matrix::new(elements)
@@ -291,13 +317,12 @@ impl<T: Field<T>, E: MatrixAccessor<T>> Matrix<T, E> {
     /// Scales a matrix $A$ by a scalar $\alpha$.
     ///
     /// * `lhs` - corresponds to $\alpha$ above, expected to be of size $1 \times 1$
-    pub fn scale(&self, lhs: Matrix<T, E>) -> Matrix<T, E> {
+    pub fn scale(&self, lhs: Matrix<T, E>) -> Matrix<T, DenseAccessor<T>> {
         lhs.assert_scalar();
-        let mut elements = Vec::new();
+        let mut elements = DenseAccessor::init(self.width, self.height);
         for row in 0..self.height {
-            elements.push(Vec::new());
             for col in 0..self.width {
-                elements[row].push(lhs.to_scalar() * self[row][col]);
+                elements[row][col] = lhs.to_scalar() * self[row][col];
             }
         }
         Matrix::new(elements)

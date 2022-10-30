@@ -25,12 +25,12 @@ use crate::algebra::matrix::*;
 pub fn euclidean_scalar_product_naive<T: Field<T>, E: MatrixAccessor<T>>(
     lhs: &Matrix<T, E>,
     rhs: &Matrix<T, E>,
-) -> Matrix<T, E> {
+) -> Matrix<T, DenseAccessor<T>> {
     let mut value = lhs[0][0] * rhs[0][0];
     for i in 1..lhs.width() {
         value = value + lhs[0][i] * rhs[i][0];
     }
-    Matrix::scalar(value)
+    Matrix::<T, E>::scalar(value)
 }
 
 /// A naive implementation of the euclidean norm
@@ -41,8 +41,8 @@ pub fn euclidean_scalar_product_naive<T: Field<T>, E: MatrixAccessor<T>>(
 /// * `matrix` - corresponds to $x$ above, expected to be of size $\dim x \times 1$
 pub fn euclidean_norm_naive<T: Field<T> + Float, E: MatrixAccessor<T>>(
     matrix: &Matrix<T, E>,
-) -> Matrix<T, E> {
-    Matrix::scalar(
+) -> Matrix<T, DenseAccessor<T>> {
+    Matrix::<T, E>::scalar(
         euclidean_scalar_product_naive(matrix, matrix)
             .to_scalar()
             .sqrt(),
@@ -62,7 +62,7 @@ pub fn p_norm_naive<T: Field<T> + Float + Signed, E: MatrixAccessor<T>>(
     for i in 0..matrix.height() {
         value = value + pow(abs(matrix[i][0]), p);
     }
-    Matrix::<f64>::scalar(nth_root(value.to_f64().unwrap(), p as f64))
+    Matrix::<f64, DenseAccessor<f64>>::scalar(nth_root(value.to_f64().unwrap(), p as f64))
 }
 
 /// [https://rosettacode.org/wiki/Nth_root#Rust](https://rosettacode.org/wiki/Nth_root#Rust)
@@ -94,18 +94,17 @@ pub fn nth_root(value: f64, n: f64) -> f64 {
 pub fn mat_mul_naive<T: Field<T>, E: MatrixAccessor<T>>(
     lhs: &Matrix<T, E>,
     rhs: &Matrix<T, E>,
-) -> Matrix<T, E> {
-    let mut elements = Vec::new();
+) -> Matrix<T, DenseAccessor<T>> {
+    let mut elements = DenseAccessor::init(rhs.width(), lhs.height());
     for row in 0..lhs.height() {
-        elements.push(Vec::new());
         for col in 0..rhs.width() {
             let mut r = Vec::new();
             for i in 0..rhs.height() {
                 r.push(rhs[i][col]);
             }
-            elements[row].push(
-                (Matrix::vector(lhs[row].to_vec()).transpose() * Matrix::vector(r)).to_scalar(),
-            );
+            elements[row][col] = (Matrix::<T, E>::vector(lhs[row].to_vec()).transpose()
+                * Matrix::<T, E>::vector(r))
+            .to_scalar();
         }
     }
     Matrix::new(elements)
@@ -121,53 +120,9 @@ pub fn mat_mul_naive<T: Field<T>, E: MatrixAccessor<T>>(
 pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static, E: MatrixAccessor<T>>(
     lhs: &Matrix<T, E>,
     rhs: &Matrix<T, E>,
-) -> Matrix<T, E> {
-    let num_threads = match thread::available_parallelism() {
-        Ok(val) => val.get(),
-        Err(err) => panic!(
-            "could not enumerate available amount of parallelism in mat_mul_naive_threaded: {}",
-            err
-        ),
-    };
-    let chunk_size = lhs.height() * rhs.width() / num_threads;
-    let lhs_elements = Arc::new(lhs.elements());
-    let rhs_elements = Arc::new(rhs.elements());
-    let height = Arc::new(lhs.height());
-    let (tx, rx) = mpsc::channel();
-    let mut workers = Vec::new();
-    for idx in 0..num_threads {
-        let t = tx.clone();
-        let l = Arc::clone(&lhs_elements);
-        let r = Arc::clone(&rhs_elements);
-        let h = Arc::clone(&height);
-        workers.push(thread::spawn(move || {
-            for i in idx * chunk_size..(idx + 1) * chunk_size {
-                let (row, col) = (i / *h, i % *h);
-                let mut rs = Vec::new();
-                for i in 0..r.len() {
-                    rs.push(r[i][col]);
-                }
-                let val =
-                    (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
-                t.send(((row, col), val)).unwrap();
-            }
-        }));
-    }
-    drop(tx);
-    let mut res = vec![vec![num::zero(); rhs.width()]; lhs.height()];
-    for i in num_threads * chunk_size..lhs.height() * rhs.width() {
-        let (row, col) = (i / lhs.height(), i % lhs.height());
-        let mut rs = Vec::new();
-        for i in 0..rhs_elements.len() {
-            rs.push(rhs_elements[i][col]);
-        }
-        res[row][col] = (Matrix::vector(lhs_elements[row].to_vec()).transpose()
-            * Matrix::vector(rs))
-        .to_scalar();
-    }
-    for ((row, col), val) in rx {
-        res[row][col] = val;
-    }
+) -> Matrix<T, DenseAccessor<T>> {
+    let mut res = DenseAccessor::init(rhs.width(), lhs.height());
+    todo!();
     Matrix::new(res)
 }
 
