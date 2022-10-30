@@ -22,12 +22,15 @@ use crate::algebra::matrix::*;
 ///
 /// * `lhs` - corresponds to $x^T$ above, of size $1 \times d$
 /// * `rhs` - corresponds to $y$ above, expected to be of size $d \times 1$
-pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
+pub fn euclidean_scalar_product_naive<T: Field<T>, E: MatrixAccessor<T>, F: MatrixAccessor<T>>(
+    lhs: &Matrix<T, E>,
+    rhs: &Matrix<T, F>,
+) -> Matrix<T, DenseAccessor<T>> {
     let mut value = lhs[0][0] * rhs[0][0];
     for i in 1..lhs.width() {
         value = value + lhs[0][i] * rhs[i][0];
     }
-    Matrix::scalar(value)
+    Matrix::<T, DenseAccessor<T>>::scalar(value)
 }
 
 /// A naive implementation of the euclidean norm
@@ -36,8 +39,10 @@ pub fn euclidean_scalar_product_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix
 /// implementation does not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - corresponds to $x$ above, expected to be of size $\dim x \times 1$
-pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T> {
-    Matrix::scalar(
+pub fn euclidean_norm_naive<T: Field<T> + Float, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+) -> Matrix<T, DenseAccessor<T>> {
+    Matrix::<T, DenseAccessor<T>>::scalar(
         euclidean_scalar_product_naive(matrix, matrix)
             .to_scalar()
             .sqrt(),
@@ -49,12 +54,15 @@ pub fn euclidean_norm_naive<T: Field<T> + Float>(matrix: &Matrix<T>) -> Matrix<T
 /// not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - corresponds to the $x$ above, expected to be of size $\dim x \times 1$
-pub fn p_norm_naive<T: Field<T> + Float + Signed>(matrix: &Matrix<T>, p: usize) -> Matrix<f64> {
+pub fn p_norm_naive<T: Field<T> + Float + Signed, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+    p: usize,
+) -> Matrix<f64, DenseAccessor<f64>> {
     let mut value: T = num::zero();
     for i in 0..matrix.height() {
         value = value + pow(abs(matrix[i][0]), p);
     }
-    Matrix::<f64>::scalar(nth_root(value.to_f64().unwrap(), p as f64))
+    Matrix::<f64, DenseAccessor<f64>>::scalar(nth_root(value.to_f64().unwrap(), p as f64))
 }
 
 /// [https://rosettacode.org/wiki/Nth_root#Rust](https://rosettacode.org/wiki/Nth_root#Rust)
@@ -83,18 +91,21 @@ pub fn nth_root(value: f64, n: f64) -> f64 {
 ///
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
-pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T> {
-    let mut elements = Vec::new();
+pub fn mat_mul_naive<T: Field<T>, E: MatrixAccessor<T>, F: MatrixAccessor<T>>(
+    lhs: &Matrix<T, E>,
+    rhs: &Matrix<T, F>,
+) -> Matrix<T, DenseAccessor<T>> {
+    let mut elements = DenseAccessor::init(lhs.height(), rhs.width());
     for row in 0..lhs.height() {
-        elements.push(Vec::new());
         for col in 0..rhs.width() {
             let mut r = Vec::new();
             for i in 0..rhs.height() {
                 r.push(rhs[i][col]);
             }
-            elements[row].push(
-                (Matrix::vector(lhs[row].to_vec()).transpose() * Matrix::vector(r)).to_scalar(),
-            );
+            elements[row][col] = (Matrix::<T, DenseAccessor<T>>::vector(lhs[row].to_vec())
+                .transpose()
+                * Matrix::<T, DenseAccessor<T>>::vector(r))
+            .to_scalar();
         }
     }
     Matrix::new(elements)
@@ -107,57 +118,62 @@ pub fn mat_mul_naive<T: Field<T>>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Matrix<T>
 ///
 /// * `lhs` - corresponds to $A$ above, expected to be of size $n \times m$
 /// * `rhs` - corresponds to $B$ above, expected to be of size $m \times p$
-pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
-    lhs: &Matrix<T>,
-    rhs: &Matrix<T>,
-) -> Matrix<T> {
-    let num_threads = match thread::available_parallelism() {
-        Ok(val) => val.get(),
-        Err(err) => panic!(
-            "could not enumerate available amount of parallelism in mat_mul_naive_threaded: {}",
-            err
-        ),
-    };
-    let chunk_size = lhs.height() * rhs.width() / num_threads;
-    let lhs_elements = Arc::new(lhs.elements());
-    let rhs_elements = Arc::new(rhs.elements());
-    let height = Arc::new(lhs.height());
-    let (tx, rx) = mpsc::channel();
-    let mut workers = Vec::new();
-    for idx in 0..num_threads {
-        let t = tx.clone();
-        let l = Arc::clone(&lhs_elements);
-        let r = Arc::clone(&rhs_elements);
-        let h = Arc::clone(&height);
-        workers.push(thread::spawn(move || {
-            for i in idx * chunk_size..(idx + 1) * chunk_size {
-                let (row, col) = (i / *h, i % *h);
-                let mut rs = Vec::new();
-                for i in 0..r.len() {
-                    rs.push(r[i][col]);
-                }
-                let val =
-                    (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
-                t.send(((row, col), val)).unwrap();
-            }
-        }));
-    }
-    drop(tx);
-    let mut res = vec![vec![num::zero(); rhs.width()]; lhs.height()];
-    for i in num_threads * chunk_size..lhs.height() * rhs.width() {
-        let (row, col) = (i / lhs.height(), i % lhs.height());
-        let mut rs = Vec::new();
-        for i in 0..rhs_elements.len() {
-            rs.push(rhs_elements[i][col]);
-        }
-        res[row][col] = (Matrix::vector(lhs_elements[row].to_vec()).transpose()
-            * Matrix::vector(rs))
-        .to_scalar();
-    }
-    for ((row, col), val) in rx {
-        res[row][col] = val;
-    }
-    Matrix::new(res)
+pub fn mat_mul_naive_threaded<
+    T: Field<T> + Send + Sync + 'static,
+    E: MatrixAccessor<T>,
+    F: MatrixAccessor<T>,
+>(
+    lhs: &Matrix<T, E>,
+    rhs: &Matrix<T, F>,
+) -> Matrix<T, DenseAccessor<T>> {
+    todo!()
+    // let num_threads = match thread::available_parallelism() {
+    //     Ok(val) => val.get(),
+    //     Err(err) => panic!(
+    //         "could not enumerate available amount of parallelism in mat_mul_naive_threaded: {}",
+    //         err
+    //     ),
+    // };
+    // let chunk_size = lhs.height() * rhs.width() / num_threads;
+    // let lhs_elements = Arc::new(lhs.elements());
+    // let rhs_elements = Arc::new(rhs.elements());
+    // let height = Arc::new(lhs.height());
+    // let (tx, rx) = mpsc::channel();
+    // let mut workers = Vec::new();
+    // for idx in 0..num_threads {
+    //     let t = tx.clone();
+    //     let l = Arc::clone(&lhs_elements);
+    //     let r = Arc::clone(&rhs_elements);
+    //     let h = Arc::clone(&height);
+    //     workers.push(thread::spawn(move || {
+    //         for i in idx * chunk_size..(idx + 1) * chunk_size {
+    //             let (row, col) = (i / *h, i % *h);
+    //             let mut rs = Vec::new();
+    //             for i in 0..r.len() {
+    //                 rs.push(r[i][col]);
+    //             }
+    //             let val =
+    //                 (Matrix::vector(l[row].to_vec()).transpose() * Matrix::vector(rs)).to_scalar();
+    //             t.send(((row, col), val)).unwrap();
+    //         }
+    //     }));
+    // }
+    // drop(tx);
+    // let mut res = vec![vec![num::zero(); rhs.width()]; lhs.height()];
+    // for i in num_threads * chunk_size..lhs.height() * rhs.width() {
+    //     let (row, col) = (i / lhs.height(), i % lhs.height());
+    //     let mut rs = Vec::new();
+    //     for i in 0..rhs_elements.len() {
+    //         rs.push(rhs_elements[i][col]);
+    //     }
+    //     res[row][col] = (Matrix::vector(lhs_elements[row].to_vec()).transpose()
+    //         * Matrix::vector(rs))
+    //     .to_scalar();
+    // }
+    // for ((row, col), val) in rx {
+    //     res[row][col] = val;
+    // }
+    // Matrix::new(res)
 }
 
 /// A classic, naive implementation of the gaussian row reduction algorithm, with runtime
@@ -166,7 +182,9 @@ pub fn mat_mul_naive_threaded<T: Field<T> + Send + Sync + 'static>(
 /// provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - the matrix to reduce
-pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn gauss_elim_naive<T: Field<T>>(
+    matrix: &Matrix<T, DenseAccessor<T>>,
+) -> Matrix<T, DenseAccessor<T>> {
     let mut elements = matrix.elements();
     for i in 1..matrix.height() {
         for j in 0..i {
@@ -181,19 +199,23 @@ pub fn gauss_elim_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
     Matrix::new(elements)
 }
 
-pub fn lu_decomp_naive<T: Field<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
+pub fn lu_decomp_naive<T: Field<T>, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+) -> (Matrix<T, DenseAccessor<T>>, Matrix<T, DenseAccessor<T>>) {
     unimplemented!();
 }
 
-pub fn qr_decomp_naive<T: Field<T>>(matrix: &Matrix<T>) -> (Matrix<T>, Matrix<T>) {
+pub fn qr_decomp_naive<T: Field<T>, E: MatrixAccessor<T>>(
+    matrix: &Matrix<T, E>,
+) -> (Matrix<T, DenseAccessor<T>>, Matrix<T, DenseAccessor<T>>) {
     unimplemented!();
 }
 
-pub fn det_naive<T: Field<T>>(matrix: &Matrix<T>) -> T {
+pub fn det_naive<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> T {
     unimplemented!();
 }
 
-pub fn rank_naive<T: Field<T>>(matrix: &Matrix<T>) -> usize {
+pub fn rank_naive<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> usize {
     unimplemented!();
 }
 
@@ -201,10 +223,12 @@ pub fn rank_naive<T: Field<T>>(matrix: &Matrix<T>) -> usize {
 /// implementation does not provide any guarantees about its numerical stability.
 ///
 /// * `matrix` - the matrix to invert, corresponds to $A$ above
-pub fn inverse_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn inverse_naive<T: Field<T>>(
+    matrix: &Matrix<T, DenseAccessor<T>>,
+) -> Matrix<T, DenseAccessor<T>> {
     let mut augmented = matrix.elements();
     let size = matrix.width();
-    let identity = Matrix::identity(size);
+    let identity = Matrix::<T, DenseAccessor<T>>::identity(size);
     for row in 0..size {
         for col in 0..size {
             augmented[row].push(identity[row][col]);
@@ -221,10 +245,10 @@ pub fn inverse_naive<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
     for i in 0..size {
         inverse.push(reduced[i][size..].to_vec());
     }
-    Matrix::new(inverse)
+    Matrix::new(DenseAccessor::from(inverse))
 }
 
-pub fn gram_schmidt<T: Field<T>>(matrix: &Matrix<T>) -> Matrix<T> {
+pub fn gram_schmidt<T: Field<T>, E: MatrixAccessor<T>>(matrix: &Matrix<T, E>) -> Matrix<T, E> {
     unimplemented!();
 }
 
@@ -239,11 +263,11 @@ mod tests {
 
     #[test]
     fn test_mat_mul_naive() {
-        let lhs = Matrix::<u32>::identity(5);
-        let rhs = Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]);
+        let lhs = Matrix::<u32, DenseAccessor<u32>>::identity(5);
+        let rhs = Matrix::from(vec![vec![1, 2, 3, 4, 5]; 5]);
         assert_eq!(
             mat_mul_naive(&lhs, &rhs),
-            Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5])
+            Matrix::from(vec![vec![1, 2, 3, 4, 5]; 5])
         );
     }
 
@@ -251,19 +275,19 @@ mod tests {
     fn bench_mat_mul_naive(b: &mut Bencher) {
         b.iter(|| {
             mat_mul_naive(
-                &Matrix::new(vec![vec![1; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
-                &Matrix::new(vec![vec![2; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+                &Matrix::from(vec![vec![1; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+                &Matrix::from(vec![vec![2; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
             )
         });
     }
 
     #[test]
     fn test_mat_mul_naive_threaded() {
-        let lhs = Matrix::<u32>::identity(5);
-        let rhs = Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5]);
+        let lhs = Matrix::<u32, DenseAccessor<u32>>::identity(5);
+        let rhs = Matrix::from(vec![vec![1, 2, 3, 4, 5]; 5]);
         assert_eq!(
             mat_mul_naive_threaded(&lhs, &rhs),
-            Matrix::new(vec![vec![1, 2, 3, 4, 5]; 5])
+            Matrix::from(vec![vec![1, 2, 3, 4, 5]; 5])
         );
     }
 
@@ -271,25 +295,25 @@ mod tests {
     fn bench_mat_mul_naive_threaded(b: &mut Bencher) {
         b.iter(|| {
             mat_mul_naive_threaded(
-                &Matrix::new(vec![vec![1; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
-                &Matrix::new(vec![vec![2; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+                &Matrix::from(vec![vec![1; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
+                &Matrix::from(vec![vec![2; MATRIX_BENCH_SIZE]; MATRIX_BENCH_SIZE]),
             )
         });
     }
 
     #[test]
     fn test_gauss_elim_naive() {
-        let matrix = Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
+        let matrix = Matrix::from(vec![vec![2.0, -1.0, 1.0], vec![1.0, 1.0, 5.0]]);
         assert_eq!(
             gauss_elim_naive(&matrix),
-            Matrix::new(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0]])
+            Matrix::from(vec![vec![2.0, -1.0, 1.0], vec![0.0, 3.0, 9.0]])
         );
     }
 
     #[bench]
     fn bench_gauss_elim_naive(b: &mut Bencher) {
         b.iter(|| {
-            gauss_elim_naive(&Matrix::new(vec![
+            gauss_elim_naive(&Matrix::from(vec![
                 vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
                 vec![11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
                 vec![21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
@@ -306,21 +330,24 @@ mod tests {
 
     #[test]
     fn test_inverse_naive() {
-        let matrix = Matrix::<u32>::identity(5);
-        assert_eq!(inverse_naive(&matrix), Matrix::<u32>::identity(5));
-        let matrix = Matrix::new(vec![vec![1, 0, 0], vec![0, 1, 0], vec![1, 0, 1]]);
+        let matrix = Matrix::<u32, DenseAccessor<u32>>::identity(5);
         assert_eq!(
             inverse_naive(&matrix),
-            Matrix::new(vec![vec![1, 0, 0], vec![0, 1, 0], vec![-1, 0, 1]])
+            Matrix::<u32, DenseAccessor<u32>>::identity(5)
+        );
+        let matrix = Matrix::from(vec![vec![1, 0, 0], vec![0, 1, 0], vec![1, 0, 1]]);
+        assert_eq!(
+            inverse_naive(&matrix),
+            Matrix::from(vec![vec![1, 0, 0], vec![0, 1, 0], vec![-1, 0, 1]])
         );
     }
 
     #[test]
     #[ignore]
     fn det_square_matrix() {
-        let matrix = Matrix::<i32>::new(vec![vec![1, 2], vec![3, 4]]);
+        let matrix = Matrix::<i32, DenseAccessor<i32>>::from(vec![vec![1, 2], vec![3, 4]]);
         assert_eq!(det_naive(&matrix), -2);
-        let matrix = Matrix::<i32>::new(vec![
+        let matrix = Matrix::<i32, DenseAccessor<i32>>::from(vec![
             vec![4, 3, 2, 1],
             vec![1, 2, 3, 4],
             vec![3, 4, 1, 2],
