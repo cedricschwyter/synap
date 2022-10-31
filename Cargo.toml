@@ -9,6 +9,13 @@ license = "GPL-3.0-or-later"
 
 [dependencies]
 num = "0.4.0"
+wasm-bindgen = "0.2.83"
 
 [package.metadata.docs.rs]
 rustdoc-args = [ "--html-in-header", "katex-header.html" ]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+#[profile.release]
+#opt-level = "s"

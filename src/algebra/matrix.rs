@@ -9,6 +9,7 @@ use std::cell::RefCell;
 use std::fmt::Debug;
 use std::ops::{Add, Div, Index, Mul, Neg, Sub};
 use std::rc::{Rc, Weak};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 /// A trait to ensure that matrix elements support the most basic of operations, as otherwise the
 /// matrix implementation is quite literally useless.
@@ -54,6 +55,9 @@ pub struct Matrix<T: Field<T>> {
     is_orthonormal: Option<bool>,
     is_unitary: Option<bool>,
 }
+
+#[wasm_bindgen]
+pub struct JsMatrix(Matrix<i32>);
 
 /// Wraps a `Matrix<T>` in a `RefCell` - Provides interior mutabilty
 pub type MatrixRef<T> = RefCell<Matrix<T>>;
